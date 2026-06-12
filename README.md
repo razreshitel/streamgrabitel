@@ -1,130 +1,122 @@
 # StreamGrab
 
-A **fully open-source, in-browser video downloader** for Chrome — a clean-room
-alternative to Video DownloadHelper with **no closed "companion app."**
+A **fully open-source video downloader** for Chrome — a real alternative to
+Video DownloadHelper, built the same way VDH actually works but with **nothing
+closed-source**.
 
-It detects media playing on any page (HLS, DASH, or direct files), lets you pick
-the quality, downloads every segment, and **muxes it into an MP4 entirely inside
-your browser using [ffmpeg.wasm](https://ffmpegwasm.netlify.app/)**. Nothing is
-ever uploaded — all processing is local.
+A lightweight **in-browser detector** spots media on any page, and a small
+**local helper** (a native-messaging host running **yt-dlp + ffmpeg**) does the
+actual downloading. That combination handles **YouTube**, HLS, DASH and direct
+files, with no browser memory limits and no proprietary "companion app."
 
-> The part of VDH that *isn't* open source is its native ffmpeg "companion app."
-> StreamGrab replaces it with ffmpeg compiled to WebAssembly, so the whole thing
-> is one MIT-licensed extension you can read end to end.
+> VDH's detector is in the browser, but its downloading/converting is done by a
+> **closed** native ffmpeg companion. StreamGrab keeps the detector and swaps that
+> companion for **yt-dlp + ffmpeg** — both open source. For YouTube it's actually
+> *more* reliable than VDH, since yt-dlp tracks YouTube's changes closely.
 
 ---
 
 ## Features
 
-- 🔎 **Auto-detection** of media via the network — the toolbar badge shows a count.
-- 🎞 **HLS** (`.m3u8`): master/variant playlists, quality picker, separate audio
-  renditions, fMP4 **and** MPEG-TS segments, byte-ranges, **AES-128 decryption**.
-- 🧩 **DASH** (`.mpd`): `SegmentTemplate` (fixed-duration **and** `SegmentTimeline`),
-  `SegmentBase` single-file, separate video/audio representation selection.
-- 📁 **Direct files** (`.mp4`, `.webm`, `.m4a`, `.mp3`, …): one-click save.
-- 🛠 **Local muxing to MP4** with ffmpeg.wasm (stream-copy, no re-encode → fast).
-- 🔐 100% local & private. MIT licensed.
+- ▶️ **YouTube** and ~1800 other sites (anything yt-dlp supports) — via the
+  "Download this page's video" button.
+- 🎞 **HLS / DASH / direct files** detected automatically; the toolbar badge shows
+  a count.
+- 🎚 **Quality presets**: best, ≤1080p, ≤720p, or audio-only (mp3).
+- 💾 **No memory limits** — yt-dlp streams straight to your Downloads folder.
+- 🔐 **100% local & private.** Nothing is uploaded. MIT licensed.
 
-## Limitations (by design / TODO)
+## Requirements
 
-- ❌ **DRM** (Widevine / FairPlay / PlayReady / HLS `SAMPLE-AES`) — impossible to
-  download and intentionally unsupported. StreamGrab will tell you when it sees it.
-- The single-threaded ffmpeg core is used (no `SharedArrayBuffer` needed in MV3),
-  so very large muxes are slower and bounded by tab memory.
-- DASH: first `<Period>` only; `SegmentList` not yet implemented.
+- **Google Chrome** (or Edge)
+- **Node.js 18+** on your PATH (the helper runs on Node)
+- Windows is fully automated below; macOS/Linux notes are inline.
 
-Please only download content you have the right to. See **Legal** below.
-
----
-
-## Install (developer / unpacked)
-
-Requires **Node 18+** (only to fetch ffmpeg.wasm and generate icons — there is no
-build step or bundler).
+## Install
 
 ```bash
 cd streamgrab
-npm run setup      # generates icons/ and downloads vendor/ffmpeg/ (~30 MB)
+npm run setup          # generate icons + download yt-dlp & ffmpeg into bin/
 ```
 
-Then load it in Chrome:
+1. **Load the extension:** `chrome://extensions` → enable **Developer mode** →
+   **Load unpacked** → select the `streamgrab/` folder.
+   (The extension ID is pinned to `eogbccakibimjjinpjpbenjnmfgobegc` via the
+   manifest `key`, so the helper can whitelist it.)
+2. **Register the helper:**
+   ```bash
+   npm run install-host
+   ```
+   This writes a native-messaging manifest and points Chrome/Edge at
+   `streamgrab-host.bat`.
+3. **Reload the extension** (↻ on its card) so it picks up the host.
+4. Open the popup — the footer should read **`engine: yt-dlp <version>`**.
 
-1. Go to `chrome://extensions`
-2. Enable **Developer mode** (top-right)
-3. **Load unpacked** → select the `streamgrab/` folder
-4. Pin the StreamGrab icon to your toolbar
+> Moved the folder after installing? Re-run `npm run install-host` (the registry
+> points at an absolute path). Uninstall any time with `npm run uninstall-host`.
 
-> `npm run setup` runs two scripts: `make-icons.mjs` (writes real PNG icons with
-> zero dependencies) and `fetch-ffmpeg.mjs` (downloads the ffmpeg.wasm core +
-> worker into `vendor/ffmpeg/`). Re-run `npm run ffmpeg` if you ever clear it.
+### macOS / Linux
+
+`npm run fetch-tools` only auto-installs binaries on Windows. Elsewhere, install
+the tools with your package manager (`brew install yt-dlp ffmpeg`, etc.) — the
+host finds them on PATH. The `install-host` step is currently Windows-only
+(PowerShell + registry); a shell-script equivalent is on the roadmap.
 
 ## Usage
 
-1. Open a page and start playing a video.
-2. The StreamGrab toolbar icon shows a **badge count** of detected media.
-3. Click it → pick an item → **Get**.
-4. In the downloader tab, choose quality/audio → **Download & convert to MP4**.
-5. Watch the progress bar; when muxing finishes you choose where to save.
+1. Open any page with a video.
+2. Click the **StreamGrab** toolbar icon.
+3. Pick a **quality**, then either:
+   - **⬇ Download this page's video** — grabs the page's main video (YouTube etc.), or
+   - **Get** on any auto-detected HLS/DASH/direct item.
+4. A tab opens showing live progress; the file lands in your **Downloads** folder.
 
 ---
 
 ## Architecture
 
 ```
-manifest.json                MV3 manifest (webRequest + downloads + storage)
+manifest.json                MV3 manifest (pinned key + nativeMessaging perm)
 src/
-  background/
-    detector.js              pure classifier: is this response media? what kind?
-    service-worker.js        webRequest sniffer, per-tab catalogue, badge, routing
-  popup/                     toolbar popup: lists detected media for the active tab
-  downloader/                full-page UI: parse → pick → fetch → mux → save
-  lib/
-    hls.js                   HLS master/media parser (keys, byte-ranges, fMP4 init)
-    dash.js                  DASH MPD parser (SegmentTemplate/Timeline/Base)
-    segment-fetcher.js       concurrent fetch (+ retry, byte-range, AES-128)
-    decrypt.js               AES-128-CBC via WebCrypto
-    ffmpeg-runner.js         ffmpeg.wasm loader + remux to MP4
-    util.js                  shared helpers
+  background/                webRequest sniffer → per-tab catalogue + badge
+  popup/                     quality picker, "download page", detected list, engine status
+  downloader/                progress UI; drives the native host over a Port
+  lib/util.js                shared helpers
+  native-host/host.js        Node native-messaging host: spawns yt-dlp, streams progress
+streamgrab-host.bat          launcher Chrome invokes (runs host.js on Node)
 scripts/
-  make-icons.mjs             dependency-free PNG icon generator
-  fetch-ffmpeg.mjs           downloads ffmpeg.wasm into vendor/ffmpeg/
-vendor/ffmpeg/               (generated) ffmpeg.wasm core + worker
+  make-icons.mjs             dependency-free PNG icons
+  fetch-tools.mjs            downloads yt-dlp.exe + ffmpeg.exe into bin/
+  install-host.ps1           registers the native host (Chrome + Edge)
+  uninstall-host.ps1         removes it
+  gen-key.mjs                regenerates the pinned key + extension id
+bin/                         (generated) yt-dlp + ffmpeg
 icons/                       (generated) toolbar icons
 ```
 
-**How a streaming download works**
+**Flow:** extension detects media (or you click "download page") → the downloader
+page opens a `chrome.runtime.connectNative` Port to `com.streamgrab.host` → the
+host runs `yt-dlp` with the chosen quality, writing to `~/Downloads` → progress
+lines stream back over the Port and render as a bar. File bytes never pass through
+the browser.
 
-1. The service worker observes responses (`chrome.webRequest.onResponseStarted`),
-   classifies each as `hls` / `dash` / `direct`, and stores it per tab.
-2. The popup lists them; **Get** opens the downloader page (which persists and can
-   run heavy work — unlike the ephemeral MV3 service worker).
-3. The downloader fetches and parses the manifest, you pick a quality, then it
-   downloads every segment concurrently (decrypting AES-128 on the fly).
-4. Segments (+ init) are concatenated per track and handed to ffmpeg.wasm, which
-   stream-copies them into a faststart MP4. The result is saved via
-   `chrome.downloads`.
+**Native-messaging protocol** (4-byte LE length + JSON):
+`{action:'ping'}` → `{type:'pong', ytdlp, ffmpeg}` ·
+`{action:'download', url, quality}` → `started` / `progress` / `log` / `done` / `error` ·
+`{action:'cancel'}`.
 
-### Why ffmpeg.wasm single-threaded?
+## Limitations
 
-The multi-threaded core needs `SharedArrayBuffer`, which needs cross-origin
-isolation (COOP+COEP) — awkward to obtain inside an MV3 extension page. The
-single-threaded core just loads from same-origin extension URLs, satisfying the
-default `script-src 'self'` CSP with no blob workers. Slower, but robust.
-
-## Roadmap
-
-- [ ] DASH `SegmentList` + multi-period
-- [ ] Subtitle/caption download (WebVTT) and muxing
-- [ ] Optional re-encode presets (H.264/AAC) for stubborn codecs
-- [ ] Firefox (MV3) port
-- [ ] Resume/retry of partially-failed segment batches
+- ❌ **DRM** (Widevine / FairPlay) — still impossible, by design.
+- The helper requires a **one-time install** (exactly like VDH's companion app).
+- `install-host` is Windows-only for now (macOS/Linux: see above).
 
 ## Legal
 
-StreamGrab is a general-purpose tool. Downloading copyrighted material without
-permission, or content protected by DRM or a site's Terms of Service, may be
-illegal in your jurisdiction. **You** are responsible for how you use it. The
-authors provide it for personal archival, accessibility, and other lawful uses.
+Only download content you have the right to. DRM-protected or
+ToS-restricted content may be illegal to download in your jurisdiction — **you**
+are responsible for how you use this. Provided for personal archival,
+accessibility, and other lawful uses.
 
 ## License
 
