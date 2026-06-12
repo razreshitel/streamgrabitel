@@ -4,7 +4,7 @@
 // It bridges the extension to local yt-dlp + ffmpeg binaries — that's what lets
 // StreamGrab handle YouTube and large files without any in-browser limits.
 
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -24,7 +24,31 @@ const YTDLP = toolPath('yt-dlp');
 const HAS_LOCAL_YTDLP = YTDLP !== 'yt-dlp';
 const FFMPEG_DIR = fs.existsSync(path.join(BIN, 'ffmpeg' + EXE)) ? BIN : null;
 
+// The Downloads folder can be relocated (e.g. to another drive or OneDrive), so
+// "homedir/Downloads" is only a guess. On Windows, read the real known-folder
+// path from the registry; fall back to the guess, then the home folder.
 function downloadsDir() {
+  if (process.platform === 'win32') {
+    try {
+      const out = execFileSync(
+        'reg',
+        [
+          'query',
+          'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders',
+          '/v',
+          '{374DE290-123F-4565-9164-39C4925E467B}',
+        ],
+        { encoding: 'utf8' },
+      );
+      const m = out.match(/REG_(?:EXPAND_)?SZ\s+(.+?)\s*$/m);
+      if (m) {
+        const p = m[1].replace(/%([^%]+)%/g, (_, v) => process.env[v] || `%${v}%`);
+        if (fs.existsSync(p)) return p;
+      }
+    } catch {
+      /* fall through to the heuristic */
+    }
+  }
   const d = path.join(os.homedir(), 'Downloads');
   return fs.existsSync(d) ? d : os.homedir();
 }
@@ -88,10 +112,24 @@ function ping() {
   );
 }
 
+// Prefer H.264 video + AAC audio in an mp4 — universally playable (Windows'
+// default player can't handle VP9/AV1). Fall back to any best video+audio.
+// Prefer H.264 video + AAC audio in an mp4 — universally playable (Windows'
+// default player can't handle VP9/AV1). Fall back to any best video+audio.
 const QUALITY = {
-  best: ['-f', 'bv*+ba/b', '--merge-output-format', 'mp4'],
-  '1080': ['-f', 'bv*[height<=1080]+ba/b[height<=1080]', '--merge-output-format', 'mp4'],
-  '720': ['-f', 'bv*[height<=720]+ba/b[height<=720]', '--merge-output-format', 'mp4'],
+  best: ['-f', 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b', '--merge-output-format', 'mp4'],
+  '1080': [
+    '-f',
+    'bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080][ext=mp4]/bv*[height<=1080]+ba/b[height<=1080]',
+    '--merge-output-format',
+    'mp4',
+  ],
+  '720': [
+    '-f',
+    'bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/bv*[height<=720]+ba/b[height<=720]',
+    '--merge-output-format',
+    'mp4',
+  ],
   audio: ['-x', '--audio-format', 'mp3'],
 };
 
