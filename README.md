@@ -110,13 +110,6 @@ the browser.
 - The helper requires a **one-time install** (it runs the local yt-dlp/ffmpeg tools).
 - `install-host` is Windows-only for now (macOS/Linux: see above).
 
-## Legal
-
-Only download content you have the right to. DRM-protected or
-ToS-restricted content may be illegal to download in your jurisdiction — **you**
-are responsible for how you use this. Provided for personal archival,
-accessibility, and other lawful uses.
-
 ## License
 
 MIT — see [LICENSE](LICENSE).
