@@ -1,0 +1,15 @@
+# Vendored ffmpeg.wasm binaries (fetched via `npm run setup`)
+/vendor/
+
+# Generated icons (created via `npm run icons`)
+/icons/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

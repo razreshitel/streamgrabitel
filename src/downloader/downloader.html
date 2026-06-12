@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="downloader.css" />
+    <title>StreamGrab — Download</title>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="head">
+        <div class="logo"><span class="dot"></span> StreamGrab</div>
+        <a id="reportUrl" class="src" target="_blank" rel="noopener"></a>
+      </header>
+
+      <h1 id="title">Preparing…</h1>
+      <p id="subtitle" class="subtitle"></p>
+
+      <div id="warn" class="warn" hidden></div>
+
+      <section id="options" class="options"></section>
+
+      <button id="go" class="go" disabled>Download</button>
+
+      <section class="progress" id="progressWrap" hidden>
+        <div class="barWrap"><div id="bar" class="bar"></div></div>
+        <div id="status" class="status"></div>
+      </section>
+
+      <details id="logWrap" class="logWrap" hidden>
+        <summary>ffmpeg log</summary>
+        <pre id="log" class="log"></pre>
+      </details>
+
+      <footer class="foot">
+        Muxed locally with ffmpeg.wasm — nothing is uploaded anywhere.
+      </footer>
+    </div>
+
+    <!-- UMD build: defines self.FFmpegWASM. Populated by `npm run setup`. -->
+    <script src="../../vendor/ffmpeg/ffmpeg.js"></script>
+    <script type="module" src="downloader.js"></script>
+  </body>
+</html>

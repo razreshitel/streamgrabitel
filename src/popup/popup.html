@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>StreamGrab</title>
+  </head>
+  <body>
+    <header class="bar">
+      <div class="brand">
+        <span class="dot"></span>
+        <strong>StreamGrab</strong>
+      </div>
+      <button id="clear" class="ghost" title="Clear list for this tab">Clear</button>
+    </header>
+
+    <main id="list" class="list" aria-live="polite"></main>
+
+    <p id="empty" class="empty">
+      No media detected yet.<br />
+      Start playing a video on the page — items appear here automatically.
+    </p>
+
+    <footer class="foot">
+      <span id="count"></span>
+      <span class="hint">HLS / DASH / direct</span>
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
