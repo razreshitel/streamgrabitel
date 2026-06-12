@@ -1,7 +1,7 @@
 {
   "name": "streamgrab",
   "version": "0.2.0",
-  "description": "Open-source video downloader — browser detector + local yt-dlp/ffmpeg helper. A fully open alternative to Video DownloadHelper.",
+  "description": "Open-source video downloader — browser detector + local yt-dlp/ffmpeg helper.",
   "type": "module",
   "private": true,
   "license": "MIT",

@@ -1,18 +1,17 @@
 # StreamGrab
 
-A **fully open-source video downloader** for Chrome — a real alternative to
-Video DownloadHelper, built the same way VDH actually works but with **nothing
+A **fully open-source video downloader** for Chrome, with **nothing
 closed-source**.
 
 A lightweight **in-browser detector** spots media on any page, and a small
 **local helper** (a native-messaging host running **yt-dlp + ffmpeg**) does the
 actual downloading. That combination handles **YouTube**, HLS, DASH and direct
-files, with no browser memory limits and no proprietary "companion app."
+files, with no browser memory limits.
 
-> VDH's detector is in the browser, but its downloading/converting is done by a
-> **closed** native ffmpeg companion. StreamGrab keeps the detector and swaps that
-> companion for **yt-dlp + ffmpeg** — both open source. For YouTube it's actually
-> *more* reliable than VDH, since yt-dlp tracks YouTube's changes closely.
+> **How it works:** the browser half just detects media and drives the UI; all
+> downloading and muxing is done by **yt-dlp + ffmpeg** running locally. Both are
+> open source, so the whole pipeline is auditable end to end. For YouTube this is
+> as reliable as yt-dlp itself, which tracks YouTube's changes closely.
 
 ---
 
@@ -108,7 +107,7 @@ the browser.
 ## Limitations
 
 - ❌ **DRM** (Widevine / FairPlay) — still impossible, by design.
-- The helper requires a **one-time install** (exactly like VDH's companion app).
+- The helper requires a **one-time install** (it runs the local yt-dlp/ffmpeg tools).
 - `install-host` is Windows-only for now (macOS/Linux: see above).
 
 ## Legal
