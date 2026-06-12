@@ -1,8 +1,8 @@
-# Removes the StreamGrab native messaging host registration.
+# Removes the StreamGrabitel native messaging host registration.
 # Run: npm run uninstall-host
 
 $ErrorActionPreference = 'SilentlyContinue'
-$HostName = 'com.streamgrab.host'
+$HostName = 'com.streamgrabitel.host'
 
 $targets = @(
   "HKCU:\Software\Google\Chrome\NativeMessagingHosts\$HostName",

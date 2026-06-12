@@ -1,6 +1,6 @@
 import { formatBytes } from '../lib/util.js';
 
-const HOST = 'com.streamgrab.host';
+const HOST = 'com.streamgrabitel.host';
 const listEl = document.getElementById('list');
 const clearBtn = document.getElementById('clear');
 const pageBtn = document.getElementById('page');

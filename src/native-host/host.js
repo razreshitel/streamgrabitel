@@ -1,8 +1,8 @@
-// StreamGrab native messaging host.
-// Chrome launches this (via streamgrab-host.bat) and talks to it over stdio using
+// StreamGrabitel native messaging host.
+// Chrome launches this (via streamgrabitel-host.bat) and talks to it over stdio using
 // the native-messaging framing: a 4-byte little-endian length prefix + UTF-8 JSON.
 // It bridges the extension to local yt-dlp + ffmpeg binaries — that's what lets
-// StreamGrab handle YouTube and large files without any in-browser limits.
+// StreamGrabitel handle YouTube and large files without any in-browser limits.
 
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';

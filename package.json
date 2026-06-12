@@ -1,5 +1,5 @@
 {
-  "name": "streamgrab",
+  "name": "streamgrabitel",
   "version": "0.2.0",
   "description": "Open-source video downloader — browser detector + local yt-dlp/ffmpeg helper.",
   "type": "module",

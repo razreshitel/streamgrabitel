@@ -1,0 +1,9 @@
+{
+    "name":  "com.streamgrab.host",
+    "description":  "StreamGrab download helper (yt-dlp + ffmpeg)",
+    "path":  "D:\\Users\\Sept\\Desktop\\Abyss\\claude\\streamgrab\\streamgrab-host.bat",
+    "type":  "stdio",
+    "allowed_origins":  [
+                            "chrome-extension://eogbccakibimjjinpjpbenjnmfgobegc/"
+                        ]
+}

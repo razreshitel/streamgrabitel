@@ -1,4 +1,4 @@
-// StreamGrab background service worker (MV3).
+// StreamGrabitel background service worker (MV3).
 // Observes network responses, classifies media, keeps a per-tab catalogue,
 // drives the toolbar badge, and answers the popup / opens the downloader.
 

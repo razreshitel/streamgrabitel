@@ -1,8 +1,8 @@
-// Drives a download through the StreamGrab native messaging host (yt-dlp + ffmpeg).
+// Drives a download through the StreamGrabitel native messaging host (yt-dlp + ffmpeg).
 // The host writes the file straight to disk and streams progress back here, so
 // there are no browser memory limits and YouTube/HLS/DASH/direct all work.
 
-const HOST = 'com.streamgrab.host';
+const HOST = 'com.streamgrabitel.host';
 const $ = (id) => document.getElementById(id);
 
 const optionsEl = $('options');
@@ -24,7 +24,7 @@ async function init() {
   item = data[`dl:${id}`];
   if (!item) {
     $('title').textContent = 'Download not found';
-    $('subtitle').textContent = 'The session expired — re-open it from the StreamGrab popup.';
+    $('subtitle').textContent = 'The session expired — re-open it from the StreamGrabitel popup.';
     return;
   }
 
@@ -206,7 +206,7 @@ function fail(message) {
 function hostError() {
   finished = true;
   showWarn(
-    'The local helper isn’t installed. In the streamgrab folder run:  npm run install-host  ' +
+    'The local helper isn’t installed. In the streamgrabitel folder run:  npm run install-host  ' +
       '(and "npm run fetch-tools" once to get yt-dlp + ffmpeg), then reload the extension.',
   );
   setStatus('Native helper not found.', 'error');

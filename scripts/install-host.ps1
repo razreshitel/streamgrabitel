@@ -1,14 +1,14 @@
-# Registers the StreamGrab native messaging host with Chrome (and Edge).
+# Registers the StreamGrabitel native messaging host with Chrome (and Edge).
 # Run: npm run install-host   (or: powershell -ExecutionPolicy Bypass -File scripts/install-host.ps1)
 
 $ErrorActionPreference = 'Stop'
 
 # Pinned extension ID, derived from manifest.json "key" (see scripts/gen-key.mjs).
 $ExtensionId = 'eogbccakibimjjinpjpbenjnmfgobegc'
-$HostName = 'com.streamgrab.host'
+$HostName = 'com.streamgrabitel.host'
 
 $Root = Split-Path -Parent $PSScriptRoot
-$HostBat = Join-Path $Root 'streamgrab-host.bat'
+$HostBat = Join-Path $Root 'streamgrabitel-host.bat'
 $ManifestPath = Join-Path $Root "$HostName.json"
 
 if (-not (Test-Path $HostBat)) { throw "Launcher not found: $HostBat" }
@@ -19,7 +19,7 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
 # Native messaging host manifest.
 $manifest = [ordered]@{
   name           = $HostName
-  description    = 'StreamGrab download helper (yt-dlp + ffmpeg)'
+  description    = 'StreamGrabitel download helper (yt-dlp + ffmpeg)'
   path           = $HostBat
   type           = 'stdio'
   allowed_origins = @("chrome-extension://$ExtensionId/")

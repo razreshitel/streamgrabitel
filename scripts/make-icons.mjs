@@ -1,4 +1,4 @@
-// Generates StreamGrab toolbar icons (16/48/128 px) as real PNG files,
+// Generates StreamGrabitel toolbar icons (16/48/128 px) as real PNG files,
 // using only Node built-ins (zlib) — no native deps, no binary blobs in the repo.
 // A rounded indigo square with a white "download into tray" glyph.
 

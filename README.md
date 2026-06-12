@@ -1,4 +1,4 @@
-# StreamGrab
+# StreamGrabitel
 
 A **fully open-source video downloader** for Chrome, with **nothing
 closed-source**.
@@ -34,12 +34,12 @@ files, with no browser memory limits.
 ## Install
 
 ```bash
-cd streamgrab
+cd streamgrabitel
 npm run setup          # generate icons + download yt-dlp, ffmpeg & deno into bin/
 ```
 
 1. **Load the extension:** `chrome://extensions` → enable **Developer mode** →
-   **Load unpacked** → select the `streamgrab/` folder.
+   **Load unpacked** → select the `streamgrabitel/` folder.
    (The extension ID is pinned to `eogbccakibimjjinpjpbenjnmfgobegc` via the
    manifest `key`, so the helper can whitelist it.)
 2. **Register the helper:**
@@ -47,7 +47,7 @@ npm run setup          # generate icons + download yt-dlp, ffmpeg & deno into bi
    npm run install-host
    ```
    This writes a native-messaging manifest and points Chrome/Edge at
-   `streamgrab-host.bat`.
+   `streamgrabitel-host.bat`.
 3. **Reload the extension** (↻ on its card) so it picks up the host.
 4. Open the popup — the footer should read **`engine: yt-dlp <version>`**.
 
@@ -64,7 +64,7 @@ host finds them on PATH. The `install-host` step is currently Windows-only
 ## Usage
 
 1. Open any page with a video.
-2. Click the **StreamGrab** toolbar icon.
+2. Click the **StreamGrabitel** toolbar icon.
 3. Pick a **quality**, then either:
    - **⬇ Download this page's video** — grabs the page's main video (YouTube etc.), or
    - **Get** on any auto-detected HLS/DASH/direct item.
@@ -82,7 +82,7 @@ src/
   downloader/                progress UI; drives the native host over a Port
   lib/util.js                shared helpers
   native-host/host.js        Node native-messaging host: spawns yt-dlp, streams progress
-streamgrab-host.bat          launcher Chrome invokes (runs host.js on Node)
+streamgrabitel-host.bat          launcher Chrome invokes (runs host.js on Node)
 scripts/
   make-icons.mjs             dependency-free PNG icons
   fetch-tools.mjs            downloads yt-dlp + ffmpeg + deno (JS runtime) into bin/
@@ -94,7 +94,7 @@ icons/                       (generated) toolbar icons
 ```
 
 **Flow:** extension detects media (or you click "download page") → the downloader
-page opens a `chrome.runtime.connectNative` Port to `com.streamgrab.host` → the
+page opens a `chrome.runtime.connectNative` Port to `com.streamgrabitel.host` → the
 host runs `yt-dlp` with the chosen quality, writing to `~/Downloads` → progress
 lines stream back over the Port and render as a bar. File bytes never pass through
 the browser.

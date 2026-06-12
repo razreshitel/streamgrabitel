@@ -5,7 +5,7 @@
 /icons/
 
 # Generated native-messaging host manifest (written by install-host.ps1)
-/com.streamgrab.host.json
+/com.streamgrabitel.host.json
 
 # Legacy: old in-browser ffmpeg.wasm vendor dir (no longer used)
 /vendor/
