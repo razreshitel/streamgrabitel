@@ -5,8 +5,8 @@ $ErrorActionPreference = 'SilentlyContinue'
 $HostName = 'com.streamgrab.host'
 
 $targets = @(
-  'HKCU:\Software\Google\Chrome\NativeMessagingHosts\' + $HostName,
-  'HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\' + $HostName
+  "HKCU:\Software\Google\Chrome\NativeMessagingHosts\$HostName",
+  "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\$HostName"
 )
 foreach ($reg in $targets) {
   if (Test-Path $reg) {

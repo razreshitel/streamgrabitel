@@ -29,14 +29,15 @@ $json = $manifest | ConvertTo-Json -Depth 5
 [System.IO.File]::WriteAllText($ManifestPath, $json, (New-Object System.Text.UTF8Encoding($false)))
 Write-Host "Wrote host manifest: $ManifestPath"
 
-# Point each browser's registry at the manifest.
+# Point each browser's registry at the manifest. Setting a key's *default* value
+# via Set-Item/Set-ItemProperty is unreliable across PowerShell versions, so use
+# the .NET API: Registry::SetValue creates the key and sets (Default) cleanly.
 $targets = @(
-  'HKCU:\Software\Google\Chrome\NativeMessagingHosts\' + $HostName,
-  'HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\' + $HostName
+  "HKEY_CURRENT_USER\Software\Google\Chrome\NativeMessagingHosts\$HostName",
+  "HKEY_CURRENT_USER\Software\Microsoft\Edge\NativeMessagingHosts\$HostName"
 )
 foreach ($reg in $targets) {
-  New-Item -Path $reg -Force | Out-Null
-  Set-Item -Path $reg -Value $ManifestPath
+  [Microsoft.Win32.Registry]::SetValue($reg, '', $ManifestPath)
   Write-Host "Registered: $reg"
 }
 
