@@ -23,6 +23,13 @@ function toolPath(name) {
 const YTDLP = toolPath('yt-dlp');
 const HAS_LOCAL_YTDLP = YTDLP !== 'yt-dlp';
 const FFMPEG_DIR = fs.existsSync(path.join(BIN, 'ffmpeg' + EXE)) ? BIN : null;
+// Deno lets yt-dlp solve YouTube's JS challenges (avoids 403s / missing formats).
+const DENO = fs.existsSync(path.join(BIN, 'deno' + EXE)) ? path.join(BIN, 'deno' + EXE) : null;
+
+// Shared yt-dlp args: point it at our bundled JS runtime when present.
+function jsRuntimeArgs() {
+  return DENO ? ['--js-runtimes', `deno:${DENO}`] : [];
+}
 
 // The Downloads folder can be relocated (e.g. to another drive or OneDrive), so
 // "homedir/Downloads" is only a guess. On Windows, read the real known-folder
@@ -110,7 +117,7 @@ function ping() {
   proc.stdout.on('data', (d) => (ver += d));
   proc.on('error', () => send({ type: 'pong', ytdlp: null, ffmpeg: !!FFMPEG_DIR }));
   proc.on('close', (code) =>
-    send({ type: 'pong', ytdlp: code === 0 ? ver.trim() : null, ffmpeg: !!FFMPEG_DIR, bin: BIN }),
+    send({ type: 'pong', ytdlp: code === 0 ? ver.trim() : null, ffmpeg: !!FFMPEG_DIR, deno: !!DENO, bin: BIN }),
   );
 }
 
@@ -123,7 +130,7 @@ function preview(msg) {
   let err = '';
   let proc;
   try {
-    proc = spawn(YTDLP, ['-J', '--no-playlist', '--no-warnings', url], { windowsHide: true });
+    proc = spawn(YTDLP, ['-J', '--no-playlist', '--no-warnings', ...jsRuntimeArgs(), url], { windowsHide: true });
   } catch (e) {
     return send({ type: 'previewError', message: `Could not launch yt-dlp: ${e.message}` });
   }
@@ -200,6 +207,7 @@ function download(msg) {
     ...(QUALITY[msg.quality] || QUALITY.best),
   ];
   if (FFMPEG_DIR) args.push('--ffmpeg-location', FFMPEG_DIR);
+  args.push(...jsRuntimeArgs());
   args.push(url);
 
   send({ type: 'started', url, outDir, ytdlp: YTDLP });

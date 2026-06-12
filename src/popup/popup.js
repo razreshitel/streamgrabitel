@@ -103,7 +103,7 @@ function checkEngine() {
       if (msg.type === 'pong') {
         answered = true;
         statusEl.textContent = msg.ytdlp
-          ? `engine: yt-dlp ${msg.ytdlp}${msg.ffmpeg ? ' + ffmpeg' : ''}`
+          ? `engine: yt-dlp ${msg.ytdlp}${msg.ffmpeg ? ' + ffmpeg' : ''}${msg.deno ? ' + deno' : ''}`
           : 'engine: yt-dlp missing — run npm run fetch-tools';
         port.disconnect();
       } else {

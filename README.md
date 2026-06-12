@@ -35,7 +35,7 @@ files, with no browser memory limits.
 
 ```bash
 cd streamgrab
-npm run setup          # generate icons + download yt-dlp & ffmpeg into bin/
+npm run setup          # generate icons + download yt-dlp, ffmpeg & deno into bin/
 ```
 
 1. **Load the extension:** `chrome://extensions` → enable **Developer mode** →
@@ -85,7 +85,7 @@ src/
 streamgrab-host.bat          launcher Chrome invokes (runs host.js on Node)
 scripts/
   make-icons.mjs             dependency-free PNG icons
-  fetch-tools.mjs            downloads yt-dlp.exe + ffmpeg.exe into bin/
+  fetch-tools.mjs            downloads yt-dlp + ffmpeg + deno (JS runtime) into bin/
   install-host.ps1           registers the native host (Chrome + Edge)
   uninstall-host.ps1         removes it
   gen-key.mjs                regenerates the pinned key + extension id
