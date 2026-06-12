@@ -29,6 +29,8 @@ const DASH_CTYPES = new Set(['application/dash+xml', 'video/vnd.mpeg.dash.mpd'])
 const SEGMENT_CTYPES = new Set([
   'video/mp2t',
   'video/iso.segment',
+  'application/vnd.yt-ump', // YouTube SABR/UMP chunk container
+  'application/x-protobuf', // SABR request/response framing
   'application/octet-stream', // ambiguous; only kept when the ext is clearly a full file
 ]);
 
@@ -45,8 +47,11 @@ function headerValue(headers, name) {
  * @returns {null | {kind:'hls'|'dash'|'direct', container:string, contentType:string, size:number}}
  */
 export function classify(details) {
-  const { url, type } = details;
+  const { url, type, method } = details;
   if (!url || !/^https?:/i.test(url)) return null;
+  // Real media is delivered over GET. YouTube's SABR streams it over POST, so
+  // skipping non-GET drops that (and similar push-style) noise wholesale.
+  if (method && method !== 'GET') return null;
   if (type && !INTERESTING_TYPES.has(type)) return null;
 
   const ext = extOf(url);
@@ -73,8 +78,10 @@ export function classify(details) {
     (ctype.startsWith('audio/') && !ctype.includes('mpegurl'));
 
   if (looksMedia) {
-    // Skip obvious micro-segments that slipped through (range chunks, etc.).
-    if (size && size < 50 * 1024 && !DIRECT_EXTS.has(ext)) return null;
+    // A standalone media file worth listing is essentially never < 50 KB. This
+    // drops ad creatives, range chunks and SABR probes that carry a video/*
+    // type (or even a .mp4 name) but are only a few KB.
+    if (size && size < 50 * 1024) return null;
     const container = DIRECT_EXTS.has(ext) ? ext : ctype.split('/')[1] || 'bin';
     return { kind: 'direct', container, contentType: ctype, size };
   }
