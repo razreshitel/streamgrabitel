@@ -1,13 +1,11 @@
 {
   "manifest_version": 3,
   "name": "StreamGrab",
-  "version": "0.1.0",
-  "description": "Open-source video/audio downloader. Detects HLS, DASH and direct media on any site and muxes streams to MP4 entirely in your browser.",
-  "permissions": ["webRequest", "downloads", "storage", "tabs"],
+  "version": "0.2.0",
+  "description": "Open-source video/audio downloader. Detects media on any site and downloads via a local yt-dlp + ffmpeg helper — handles YouTube, HLS, DASH and direct files.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApK3lVn7ql33zOJOyLU/kGwhnAQeMZzgWON4+dpZBBAPVb/D6OsvER2V8fpnYeDRJu3M2gviaAStgE9g95iqvA8pIbqDIAtPNoYI+fs/Np4U53wzNaDf1dm7s/17a/HTe1xDmqdjJtVKVA64e/l8Yxk3JS5qG+BCT9Oaf9vWZmKQi4cGzo/RH4EsfJFOZT2SfuXbEqF+voPYba7mzO4Di4Cu85t5SzZdGN+rWY2NSS4qAl7ZotiLt1ZiNoLYIawe+9QYrCMBDVGMeZnNvQEcKmRdUOGf0nocoyjWPBzndJA+jjzZX5FfjI+Dwf+nfhpA8yC5lz6kFh/QMe//xlj0NLwIDAQAB",
+  "permissions": ["webRequest", "downloads", "storage", "tabs", "nativeMessaging"],
   "host_permissions": ["<all_urls>"],
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
-  },
   "background": {
     "service_worker": "src/background/service-worker.js",
     "type": "module"
