@@ -18,7 +18,17 @@
 
       <div id="warn" class="warn" hidden></div>
 
-      <section id="options" class="options"></section>
+      <section id="options" class="options">
+        <div class="field">
+          <label for="quality">Quality</label>
+          <select id="quality">
+            <option value="best">Best available</option>
+            <option value="1080">Up to 1080p</option>
+            <option value="720">Up to 720p</option>
+            <option value="audio">Audio only (mp3)</option>
+          </select>
+        </div>
+      </section>
 
       <button id="go" class="go" disabled>Download</button>
 
@@ -28,17 +38,15 @@
       </section>
 
       <details id="logWrap" class="logWrap" hidden>
-        <summary>ffmpeg log</summary>
+        <summary>yt-dlp log</summary>
         <pre id="log" class="log"></pre>
       </details>
 
       <footer class="foot">
-        Muxed locally with ffmpeg.wasm — nothing is uploaded anywhere.
+        Downloaded locally with yt-dlp + ffmpeg — nothing is uploaded anywhere.
       </footer>
     </div>
 
-    <!-- UMD build: defines self.FFmpegWASM. Populated by `npm run setup`. -->
-    <script src="../../vendor/ffmpeg/ffmpeg.js"></script>
     <script type="module" src="downloader.js"></script>
   </body>
 </html>

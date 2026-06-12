@@ -12,19 +12,30 @@
         <span class="dot"></span>
         <strong>StreamGrab</strong>
       </div>
-      <button id="clear" class="ghost" title="Clear list for this tab">Clear</button>
+      <button id="clear" class="ghost" title="Clear detected list for this tab">Clear</button>
     </header>
 
-    <main id="list" class="list" aria-live="polite"></main>
+    <div class="controls">
+      <label class="qlabel" for="quality">Quality</label>
+      <select id="quality">
+        <option value="best">Best available</option>
+        <option value="1080">Up to 1080p</option>
+        <option value="720">Up to 720p</option>
+        <option value="audio">Audio only (mp3)</option>
+      </select>
+    </div>
 
+    <button id="page" class="primary">⬇ Download this page's video</button>
+
+    <div class="section-label">Detected on this page</div>
+    <main id="list" class="list" aria-live="polite"></main>
     <p id="empty" class="empty">
-      No media detected yet.<br />
-      Start playing a video on the page — items appear here automatically.
+      Nothing extra detected — the button above grabs the page's main video
+      (YouTube, etc.) via yt-dlp.
     </p>
 
     <footer class="foot">
-      <span id="count"></span>
-      <span class="hint">HLS / DASH / direct</span>
+      <span id="status" class="hint">engine: checking…</span>
     </footer>
 
     <script type="module" src="popup.js"></script>
