@@ -87,6 +87,8 @@ function handle(msg) {
   switch (msg.action) {
     case 'ping':
       return ping();
+    case 'preview':
+      return preview(msg);
     case 'download':
       return download(msg);
     case 'cancel':
@@ -112,8 +114,54 @@ function ping() {
   );
 }
 
-// Prefer H.264 video + AAC audio in an mp4 — universally playable (Windows'
-// default player can't handle VP9/AV1). Fall back to any best video+audio.
+// Fetch metadata only (no download) so the UI can show a preview first.
+function preview(msg) {
+  const url = String(msg.url || '');
+  if (!/^https?:\/\//i.test(url)) return send({ type: 'previewError', message: 'Invalid URL.' });
+
+  let out = '';
+  let err = '';
+  let proc;
+  try {
+    proc = spawn(YTDLP, ['-J', '--no-playlist', '--no-warnings', url], { windowsHide: true });
+  } catch (e) {
+    return send({ type: 'previewError', message: `Could not launch yt-dlp: ${e.message}` });
+  }
+  proc.stdout.on('data', (d) => (out += d));
+  proc.stderr.on('data', (d) => (err += d));
+  proc.on('error', (e) => send({ type: 'previewError', message: e.message }));
+  proc.on('close', (code) => {
+    if (code !== 0) {
+      return send({ type: 'previewError', message: 'yt-dlp could not read this page.', detail: err.slice(-400) });
+    }
+    try {
+      const info = JSON.parse(out);
+      // Only forward small fields — a full -J dump can exceed the native-messaging size limit.
+      send({
+        type: 'preview',
+        title: info.title || info.fulltitle || '',
+        thumbnail: info.thumbnail || '',
+        duration: info.duration || 0,
+        uploader: info.uploader || info.channel || info.uploader_id || '',
+        extractor: info.extractor_key || info.extractor || '',
+        heights: summarizeHeights(info.formats),
+      });
+    } catch {
+      send({ type: 'previewError', message: 'Could not parse the video info.' });
+    }
+  });
+}
+
+// Distinct video resolutions available, highest first.
+function summarizeHeights(formats) {
+  if (!Array.isArray(formats)) return [];
+  const hs = new Set();
+  for (const f of formats) {
+    if (f && f.vcodec && f.vcodec !== 'none' && f.height) hs.add(f.height);
+  }
+  return [...hs].sort((a, b) => b - a).slice(0, 16);
+}
+
 // Prefer H.264 video + AAC audio in an mp4 — universally playable (Windows'
 // default player can't handle VP9/AV1). Fall back to any best video+audio.
 const QUALITY = {

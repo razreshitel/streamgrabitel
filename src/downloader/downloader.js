@@ -39,6 +39,62 @@ async function init() {
   go.disabled = false;
   go.textContent = 'Download';
   go.onclick = start;
+
+  runPreview();
+}
+
+// --- preview (metadata only, before downloading) ----------------------------
+function fmtDuration(sec) {
+  if (!sec || sec < 0) return '';
+  sec = Math.round(sec);
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const pad = (x) => String(x).padStart(2, '0');
+  return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+function runPreview() {
+  $('pmeta').textContent = 'Loading preview…';
+  let pport;
+  try {
+    pport = chrome.runtime.connectNative(HOST);
+  } catch {
+    $('pmeta').textContent = '';
+    return;
+  }
+  let answered = false;
+  pport.onMessage.addListener((msg) => {
+    if (msg.type === 'preview') {
+      answered = true;
+      renderPreview(msg);
+      pport.disconnect();
+    } else if (msg.type === 'previewError') {
+      answered = true;
+      $('pmeta').textContent = 'Preview unavailable — you can still download.';
+      pport.disconnect();
+    }
+  });
+  pport.onDisconnect.addListener(() => {
+    if (!answered) $('pmeta').textContent = '';
+  });
+  pport.postMessage({ action: 'preview', url: item.url });
+}
+
+function renderPreview(info) {
+  if (info.title) $('title').textContent = info.title;
+  if (info.thumbnail) {
+    const img = $('thumb');
+    img.src = info.thumbnail;
+    img.onload = () => ($('thumbWrap').hidden = false);
+    img.onerror = () => ($('thumbWrap').hidden = true);
+  }
+  const bits = [];
+  if (info.duration) bits.push(fmtDuration(info.duration));
+  if (info.uploader) bits.push(info.uploader);
+  if (info.heights?.length) bits.push(`up to ${info.heights[0]}p`);
+  if (info.extractor) bits.push(info.extractor);
+  $('pmeta').textContent = bits.join('  ·  ');
 }
 
 // --- ui helpers -------------------------------------------------------------
