@@ -1,14 +1,17 @@
 {
   "name": "streamgrab",
-  "version": "0.1.0",
-  "description": "Open-source, in-browser video downloader (HLS/DASH/direct) — a fully open alternative to Video DownloadHelper.",
+  "version": "0.2.0",
+  "description": "Open-source video downloader — browser detector + local yt-dlp/ffmpeg helper. A fully open alternative to Video DownloadHelper.",
   "type": "module",
   "private": true,
   "license": "MIT",
   "scripts": {
-    "setup": "node scripts/make-icons.mjs && node scripts/fetch-ffmpeg.mjs",
+    "setup": "node scripts/make-icons.mjs && node scripts/fetch-tools.mjs",
     "icons": "node scripts/make-icons.mjs",
-    "ffmpeg": "node scripts/fetch-ffmpeg.mjs"
+    "fetch-tools": "node scripts/fetch-tools.mjs",
+    "install-host": "powershell -ExecutionPolicy Bypass -File scripts/install-host.ps1",
+    "uninstall-host": "powershell -ExecutionPolicy Bypass -File scripts/uninstall-host.ps1",
+    "gen-key": "node scripts/gen-key.mjs"
   },
   "engines": {
     "node": ">=18"

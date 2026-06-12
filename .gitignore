@@ -1,8 +1,14 @@
-# Vendored ffmpeg.wasm binaries (fetched via `npm run setup`)
-/vendor/
+# Engine binaries (fetched via `npm run fetch-tools`)
+/bin/
 
 # Generated icons (created via `npm run icons`)
 /icons/
+
+# Generated native-messaging host manifest (written by install-host.ps1)
+/com.streamgrab.host.json
+
+# Legacy: old in-browser ffmpeg.wasm vendor dir (no longer used)
+/vendor/
 
 # Node
 node_modules/
