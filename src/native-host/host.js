@@ -162,19 +162,21 @@ function summarizeHeights(formats) {
   return [...hs].sort((a, b) => b - a).slice(0, 16);
 }
 
-// Prefer H.264 video + AAC audio in an mp4 — universally playable (Windows'
-// default player can't handle VP9/AV1). Fall back to any best video+audio.
+// Force H.264 (avc1) video + AAC audio in an mp4. YouTube also serves VP9/AV1
+// inside mp4 containers, which many players (incl. Windows' default) render as a
+// grey screen with sound — so we match the *codec*, not just the container.
+// avc1 caps at 1080p on YouTube, which is the right trade for "plays everywhere".
 const QUALITY = {
-  best: ['-f', 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b', '--merge-output-format', 'mp4'],
+  best: ['-f', 'bv*[vcodec^=avc1]+ba[acodec^=mp4a]/b[vcodec^=avc1]/bv*+ba/b', '--merge-output-format', 'mp4'],
   '1080': [
     '-f',
-    'bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080][ext=mp4]/bv*[height<=1080]+ba/b[height<=1080]',
+    'bv*[height<=1080][vcodec^=avc1]+ba[acodec^=mp4a]/b[height<=1080][vcodec^=avc1]/bv*[height<=1080]+ba/b[height<=1080]',
     '--merge-output-format',
     'mp4',
   ],
   '720': [
     '-f',
-    'bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/bv*[height<=720]+ba/b[height<=720]',
+    'bv*[height<=720][vcodec^=avc1]+ba[acodec^=mp4a]/b[height<=720][vcodec^=avc1]/bv*[height<=720]+ba/b[height<=720]',
     '--merge-output-format',
     'mp4',
   ],
