@@ -17,6 +17,8 @@ const qualityEl = $('quality');
 let item = null;
 let port = null;
 let finished = false;
+let lastFile = null;
+let lastDir = null;
 
 init();
 
@@ -143,6 +145,7 @@ function showWarn(text) {
 // --- download ---------------------------------------------------------------
 function start() {
   finished = false;
+  $('doneActions').hidden = true;
   setControlsDisabled(true);
   setProgressWrap(true);
   setProgress(null);
@@ -188,6 +191,9 @@ function onMessage(msg) {
       finished = true;
       setProgress(1);
       setStatus(`Done — saved to ${msg.file || msg.outDir}.`, 'done');
+      lastFile = msg.file || null;
+      lastDir = msg.outDir || null;
+      $('doneActions').hidden = false;
       cleanup();
       endRun();
       break;
@@ -255,3 +261,25 @@ function endRun() {
   go.disabled = false;
   go.onclick = start;
 }
+
+// Ask the host to open the finished file / reveal it in the file manager.
+function hostAction(action) {
+  const file = lastFile || lastDir;
+  if (!file) return;
+  try {
+    const p = chrome.runtime.connectNative(HOST);
+    p.postMessage({ action, file });
+    setTimeout(() => {
+      try {
+        p.disconnect();
+      } catch {
+        /* already closed */
+      }
+    }, 1500);
+  } catch {
+    /* host unavailable */
+  }
+}
+
+$('openFile').addEventListener('click', () => hostAction('open'));
+$('showFolder').addEventListener('click', () => hostAction('reveal'));

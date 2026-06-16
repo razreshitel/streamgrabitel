@@ -110,6 +110,41 @@ function killTree(proc) {
   }
 }
 
+// Reveal a file in the OS file manager (selecting it), or open a folder.
+function revealPath(p) {
+  if (!p) return;
+  let isDir = false;
+  try {
+    isDir = fs.statSync(p).isDirectory();
+  } catch {
+    /* path may be gone */
+  }
+  try {
+    if (process.platform === 'win32') {
+      if (isDir) spawn('explorer.exe', [p], { windowsHide: true });
+      else spawn('explorer.exe', [`/select,${p}`], { windowsHide: true });
+    } else if (process.platform === 'darwin') {
+      spawn('open', isDir ? [p] : ['-R', p]);
+    } else {
+      spawn('xdg-open', [isDir ? p : path.dirname(p)]);
+    }
+  } catch {
+    /* nothing we can do */
+  }
+}
+
+// Open a file with its default application (no console window on Windows).
+function openPath(p) {
+  if (!p) return;
+  try {
+    if (process.platform === 'win32') spawn('rundll32', ['url.dll,FileProtocolHandler', p], { windowsHide: true });
+    else if (process.platform === 'darwin') spawn('open', [p]);
+    else spawn('xdg-open', [p]);
+  } catch {
+    /* nothing we can do */
+  }
+}
+
 function handle(msg) {
   switch (msg.action) {
     case 'ping':
@@ -122,6 +157,10 @@ function handle(msg) {
       cancelRequested = true;
       killTree(current);
       return;
+    case 'reveal':
+      return revealPath(msg.file);
+    case 'open':
+      return openPath(msg.file);
     default:
       send({ type: 'error', message: `unknown action: ${msg.action}` });
   }
