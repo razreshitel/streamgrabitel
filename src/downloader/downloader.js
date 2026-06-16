@@ -182,7 +182,14 @@ function onMessage(msg) {
       break;
     case 'progress':
       setProgress((msg.percent || 0) / 100);
-      setStatus(`Downloading… ${msg.percent?.toFixed(1)}%${msg.speed ? ` · ${msg.speed}` : ''}${msg.eta ? ` · ETA ${msg.eta}` : ''}`);
+      setStatus(
+        `Downloading… ${msg.percent?.toFixed(1)}%` +
+          `${msg.total ? ` of ${msg.total}` : ''}${msg.speed ? ` · ${msg.speed}` : ''}${msg.eta ? ` · ETA ${msg.eta}` : ''}`,
+      );
+      break;
+    case 'phase':
+      setProgress(null); // indeterminate — post-processing has no % to report
+      setStatus(`${phaseLabel(msg.name)}…`);
       break;
     case 'log':
       appendLog(msg.line);
@@ -211,6 +218,16 @@ function onMessage(msg) {
       break;
     }
   }
+}
+
+function phaseLabel(name) {
+  if (name === 'Merger') return 'Merging audio + video';
+  if (name === 'ExtractAudio') return 'Extracting audio';
+  if (name === 'VideoConvertor' || name === 'VideoRemuxer') return 'Converting';
+  if (name === 'EmbedSubtitle') return 'Embedding subtitles';
+  if (name === 'Metadata') return 'Writing metadata';
+  if (name && name.startsWith('Fixup')) return 'Finalizing';
+  return 'Processing';
 }
 
 function cancel() {

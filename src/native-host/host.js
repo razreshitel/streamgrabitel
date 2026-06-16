@@ -299,8 +299,18 @@ function download(msg) {
     if (pm) {
       const sp = line.match(/at\s+([\d.]+\s*\w+\/s)/);
       const eta = line.match(/ETA\s+([\d:]+)/);
-      send({ type: 'progress', percent: parseFloat(pm[1]), speed: sp ? sp[1] : '', eta: eta ? eta[1] : '' });
+      const total = line.match(/of\s+~?\s*([\d.]+\s*[KMGT]i?B)/i);
+      send({
+        type: 'progress',
+        percent: parseFloat(pm[1]),
+        speed: sp ? sp[1] : '',
+        eta: eta ? eta[1] : '',
+        total: total ? total[1].replace(/\s+/g, '') : '',
+      });
     }
+    // Post-processing phases (no % progress) — surface them so the UI isn't "stuck at 100%".
+    const phase = line.match(/^\[(Merger|ExtractAudio|VideoConvertor|VideoRemuxer|Fixup\w*|Metadata|EmbedSubtitle)\]/);
+    if (phase) send({ type: 'phase', name: phase[1] });
     const dest =
       line.match(/Merging formats into "(.+)"/) ||
       line.match(/\[ExtractAudio\] Destination:\s*(.+)\s*$/) ||
