@@ -9,9 +9,10 @@
     "setup": "node scripts/make-icons.mjs && node scripts/fetch-tools.mjs",
     "icons": "node scripts/make-icons.mjs",
     "fetch-tools": "node scripts/fetch-tools.mjs",
-    "install-host": "powershell -ExecutionPolicy Bypass -File scripts/install-host.ps1",
-    "uninstall-host": "powershell -ExecutionPolicy Bypass -File scripts/uninstall-host.ps1",
-    "gen-key": "node scripts/gen-key.mjs"
+    "install-host": "node scripts/install-host.mjs",
+    "uninstall-host": "node scripts/install-host.mjs --uninstall",
+    "gen-key": "node scripts/gen-key.mjs",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"
