@@ -166,7 +166,7 @@ function start() {
     else fail(`Helper disconnected${err ? `: ${err}` : ''}.`);
   });
 
-  port.postMessage({ action: 'download', url: item.url, quality: qualityEl.value });
+  port.postMessage({ action: 'download', url: item.url, quality: qualityEl.value, subs: $('subs').checked });
 
   go.textContent = 'Cancel';
   go.disabled = false;
@@ -297,7 +297,7 @@ function cleanup() {
 }
 
 function setControlsDisabled(disabled) {
-  for (const s of optionsEl.querySelectorAll('select')) s.disabled = disabled;
+  for (const s of optionsEl.querySelectorAll('select, input')) s.disabled = disabled;
 }
 
 function endRun() {

@@ -277,6 +277,9 @@ function download(msg) {
     '%(title).180B [%(id)s].%(ext)s',
     ...qualityArgs(msg.quality),
   ];
+  if (msg.subs && msg.quality !== 'audio') {
+    args.push('--embed-subs', '--write-auto-subs', '--sub-langs', 'en.*,en');
+  }
   if (FFMPEG_DIR) args.push('--ffmpeg-location', FFMPEG_DIR);
   args.push(...jsRuntimeArgs());
   args.push('--', url); // end-of-options: never treat the URL as a flag
