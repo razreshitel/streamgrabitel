@@ -77,11 +77,12 @@ function runPreview() {
 
 function renderPreview(info) {
   if (info.title) $('title').textContent = info.title;
-  if (info.thumbnail) {
+  // Only load http(s) thumbnails — the URL comes from scraped page metadata.
+  if (info.thumbnail && /^https?:\/\//i.test(info.thumbnail)) {
     const img = $('thumb');
-    img.src = info.thumbnail;
     img.onload = () => ($('thumbWrap').hidden = false);
     img.onerror = () => ($('thumbWrap').hidden = true);
+    img.src = info.thumbnail; // set src after handlers (cached images fire synchronously)
   }
   const bits = [];
   if (info.duration) bits.push(formatDuration(info.duration));
