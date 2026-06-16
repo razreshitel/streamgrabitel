@@ -73,6 +73,11 @@ process.stdin.on('data', (chunk) => {
   inbuf = Buffer.concat([inbuf, chunk]);
   while (inbuf.length >= 4) {
     const len = inbuf.readUInt32LE(0);
+    // A sane request is tiny; a huge length means a corrupt/desynced stream.
+    if (len > 64 * 1024 * 1024) {
+      process.stderr.write('streamgrabitel-host: framing desync, aborting\n');
+      process.exit(1);
+    }
     if (inbuf.length < 4 + len) break;
     const body = inbuf.subarray(4, 4 + len);
     inbuf = inbuf.subarray(4 + len);
@@ -321,7 +326,9 @@ function download(msg) {
     if (dest) finalFile = dest[1].replace(/"$/, '').trim();
     const already = line.match(/\[download\]\s+(.+?)\s+has already been downloaded/);
     if (already) finalFile = already[1].trim();
-    send({ type: 'log', line });
+    // Clamp: a single multi-MB line would exceed Chrome's ~1MB message cap and
+    // drop the whole connection mid-download.
+    send({ type: 'log', line: line.length > 2000 ? `${line.slice(0, 2000)}…` : line });
   };
 
   lineStream(proc.stdout, onLine);
