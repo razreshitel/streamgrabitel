@@ -7,8 +7,9 @@
 // macOS/Linux: install yt-dlp, ffmpeg and deno via your package manager; the
 // native host finds them on PATH.
 
-import { mkdirSync, writeFileSync, existsSync, copyFileSync, rmSync, readdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, copyFileSync, rmSync, readdirSync, readFileSync, renameSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -21,8 +22,33 @@ async function download(url, dest) {
   const res = await fetch(url, { redirect: 'follow' });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
   const buf = Buffer.from(await res.arrayBuffer());
-  writeFileSync(dest, buf);
+  // Write to a temp file then rename — an interrupted run never leaves a
+  // half-written binary that the "already present" check would later trust.
+  const tmp = `${dest}.part`;
+  writeFileSync(tmp, buf);
+  renameSync(tmp, dest);
   console.log(`  -> ${dest.replace(ROOT, '.')}  (${(buf.length / 1048576).toFixed(1)} MiB)`);
+}
+
+// Verify yt-dlp.exe against the official SHA2-256SUMS from the same release.
+// Guards against a corrupted/MITM'd download (delete + abort on mismatch).
+async function verifyYtDlp(file) {
+  try {
+    const res = await fetch('https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS');
+    if (!res.ok) return console.warn('  (could not fetch checksums — skipping yt-dlp verification)');
+    const line = (await res.text()).split('\n').map((l) => l.trim()).find((l) => /\byt-dlp\.exe$/.test(l));
+    if (!line) return console.warn('  (no yt-dlp.exe checksum entry — skipping verification)');
+    const expected = line.split(/\s+/)[0].toLowerCase();
+    const actual = createHash('sha256').update(readFileSync(file)).digest('hex');
+    if (actual !== expected) {
+      rmSync(file, { force: true });
+      throw new Error(`yt-dlp.exe checksum mismatch — download rejected (expected ${expected}, got ${actual})`);
+    }
+    console.log('  yt-dlp checksum verified.');
+  } catch (e) {
+    if (/mismatch/.test(e.message)) throw e;
+    console.warn('  yt-dlp verification skipped:', e.message);
+  }
 }
 
 function unzip(zip, dest) {
@@ -51,6 +77,7 @@ async function main() {
   } else {
     console.log('Downloading yt-dlp...');
     await download('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe', join(BIN, 'yt-dlp.exe'));
+    await verifyYtDlp(join(BIN, 'yt-dlp.exe'));
   }
 
   // ffmpeg — zip containing ffmpeg.exe + ffprobe.exe.
