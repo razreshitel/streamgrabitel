@@ -266,7 +266,10 @@ function download(msg) {
     '--newline',
     '--no-playlist',
     '--no-mtime',
-    '--no-part',
+    '--retries',
+    '10',
+    '--fragment-retries',
+    '10', // keep .part files (no --no-part) so a flaky download can resume
     '--windows-filenames', // sanitize reserved/invalid names so metadata can't steer the path
     '-P',
     outDir, // fixed download root, independent of the (metadata-driven) name template
