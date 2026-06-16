@@ -90,6 +90,24 @@ function renderPreview(info) {
   if (info.heights?.length) bits.push(`up to ${info.heights[0]}p`);
   if (info.extractor) bits.push(info.extractor);
   $('pmeta').textContent = bits.join('  ·  ');
+
+  if (info.heights?.length) buildQualityOptions(info.heights);
+}
+
+// Replace the fixed presets with the resolutions this video actually offers.
+function buildQualityOptions(heights) {
+  const prev = qualityEl.value;
+  qualityEl.innerHTML = '';
+  const add = (v, label) => {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = label;
+    qualityEl.appendChild(o);
+  };
+  add('best', 'Best (≤1080p · H.264)');
+  for (const h of heights) add(String(h), `${h}p${h > 1080 ? ' · VP9/AV1' : ''}`);
+  add('audio', 'Audio only (mp3)');
+  if ([...qualityEl.options].some((o) => o.value === prev)) qualityEl.value = prev;
 }
 
 // --- ui helpers -------------------------------------------------------------

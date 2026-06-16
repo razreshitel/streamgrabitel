@@ -193,23 +193,27 @@ function summarizeHeights(formats) {
 // Force H.264 (avc1) video + AAC audio in an mp4. YouTube also serves VP9/AV1
 // inside mp4 containers, which many players (incl. Windows' default) render as a
 // grey screen with sound — so we match the *codec*, not just the container.
-// avc1 caps at 1080p on YouTube, which is the right trade for "plays everywhere".
+// avc1 caps at 1080p on YouTube; above that the chosen height falls back to
+// whatever codec is available (may be VP9/AV1 — the user explicitly asked for it).
 const QUALITY = {
   best: ['-f', 'bv*[vcodec^=avc1]+ba[acodec^=mp4a]/b[vcodec^=avc1]/bv*+ba/b', '--merge-output-format', 'mp4'],
-  '1080': [
-    '-f',
-    'bv*[height<=1080][vcodec^=avc1]+ba[acodec^=mp4a]/b[height<=1080][vcodec^=avc1]/bv*[height<=1080]+ba/b[height<=1080]',
-    '--merge-output-format',
-    'mp4',
-  ],
-  '720': [
-    '-f',
-    'bv*[height<=720][vcodec^=avc1]+ba[acodec^=mp4a]/b[height<=720][vcodec^=avc1]/bv*[height<=720]+ba/b[height<=720]',
-    '--merge-output-format',
-    'mp4',
-  ],
   audio: ['-x', '--audio-format', 'mp3'],
 };
+
+// 'best' | 'audio' | a numeric height ('1080', '720', '2160', …).
+function qualityArgs(q) {
+  if (q === 'audio') return QUALITY.audio;
+  const h = parseInt(q, 10);
+  if (Number.isFinite(h) && h > 0) {
+    return [
+      '-f',
+      `bv*[height<=${h}][vcodec^=avc1]+ba[acodec^=mp4a]/b[height<=${h}][vcodec^=avc1]/bv*[height<=${h}]+ba/b[height<=${h}]`,
+      '--merge-output-format',
+      'mp4',
+    ];
+  }
+  return QUALITY.best;
+}
 
 function download(msg) {
   if (current) return send({ type: 'error', message: 'A download is already running.' });
@@ -229,7 +233,7 @@ function download(msg) {
     outDir, // fixed download root, independent of the (metadata-driven) name template
     '-o',
     '%(title).180B [%(id)s].%(ext)s',
-    ...(QUALITY[msg.quality] || QUALITY.best),
+    ...qualityArgs(msg.quality),
   ];
   if (FFMPEG_DIR) args.push('--ffmpeg-location', FFMPEG_DIR);
   args.push(...jsRuntimeArgs());
