@@ -8,9 +8,31 @@ import { uid, basename, hostOf } from '../lib/util.js';
 const MAX_PER_TAB = 60;
 const BADGE_COLOR = '#4F46E5';
 
-// tabId -> Map<url, item>
+// tabId -> Map<dedupeKey, item>
 /** @type {Map<number, Map<string, any>>} */
 const store = new Map();
+
+// Query params that vary per request for the *same* logical media (byte ranges,
+// CDN tokens, cache-busters). Stripping them collapses dozens of near-identical
+// URLs (e.g. a single video requested as many range chunks) into one list entry.
+const VOLATILE_PARAMS = new Set([
+  'range', 'rn', 'rbuf', 'bytestart', 'byteend', 'sq', 'dur', 'keepalive', 'rm',
+  'cms_redirect', 'cmsv', 'ei', 'rqh', 'mime', 'ms', 'mt', 'mv', 'mn', '_', 't',
+  'start', 'end', 'offset', 'pos', 'ts', 'cache',
+]);
+
+function dedupeKey(url) {
+  try {
+    const u = new URL(url);
+    const kept = [...u.searchParams.entries()]
+      .filter(([k]) => !VOLATILE_PARAMS.has(k.toLowerCase()))
+      .sort();
+    const q = kept.length ? '?' + kept.map(([k, v]) => `${k}=${v}`).join('&') : '';
+    return u.origin + u.pathname + q;
+  } catch {
+    return url;
+  }
+}
 
 // --- session persistence (survives SW suspend/resume) -----------------------
 let loaded = false;
@@ -21,7 +43,7 @@ async function ensureLoaded() {
     if (media) {
       for (const [tabId, items] of Object.entries(media)) {
         const m = new Map();
-        for (const it of items) m.set(it.url, it);
+        for (const it of items) m.set(dedupeKey(it.url), it);
         store.set(Number(tabId), m);
       }
     }
@@ -81,14 +103,15 @@ async function onResponse(details) {
   await ensureLoaded();
   const m = tabItems(details.tabId);
 
-  const existing = m.get(details.url);
+  const key = dedupeKey(details.url);
+  const existing = m.get(key);
   if (existing) {
     if (hit.size && !existing.size) existing.size = hit.size;
     return;
   }
   if (m.size >= MAX_PER_TAB) return;
 
-  m.set(details.url, {
+  m.set(key, {
     id: uid(),
     tabId: details.tabId,
     url: details.url,
