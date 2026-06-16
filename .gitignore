@@ -4,8 +4,8 @@
 # Generated icons (created via `npm run icons`)
 /icons/
 
-# Generated native-messaging host manifest (written by install-host.ps1)
-/com.streamgrabitel.host.json
+# Generated native-messaging host manifest (written by the install script)
+/com.*.host.json
 
 # Legacy: old in-browser ffmpeg.wasm vendor dir (no longer used)
 /vendor/
