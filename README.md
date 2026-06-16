@@ -19,9 +19,15 @@ files, with no browser memory limits.
 
 - ▶️ **YouTube** and ~1800 other sites (anything yt-dlp supports) — via the
   "Download this page's video" button.
-- 🎞 **HLS / DASH / direct files** detected automatically; the toolbar badge shows
-  a count.
-- 🎚 **Quality presets**: best, ≤1080p, ≤720p, or audio-only (mp3).
+- 🖼 **Preview before downloading** — thumbnail, title, duration, and the
+  resolutions the video actually offers.
+- 🎞 **HLS / DASH / direct files** detected automatically (deduped); the toolbar
+  badge shows a count.
+- 🎚 **Quality**: pick from the video's real resolutions, or audio-only (mp3).
+  Defaults to H.264 ≤1080p so it plays everywhere.
+- 💬 **Optional subtitle embedding** (English).
+- 📂 **Open file / show in folder** when a download finishes.
+- 🔁 **Resumable**, with automatic retries on flaky connections.
 - 💾 **No memory limits** — yt-dlp streams straight to your Downloads folder.
 - 🔐 **100% local & private.** Nothing is uploaded. MIT licensed.
 
@@ -46,20 +52,20 @@ npm run setup          # generate icons + download yt-dlp, ffmpeg & deno into bi
    ```bash
    npm run install-host
    ```
-   This writes a native-messaging manifest and points Chrome/Edge at
-   `streamgrabitel-host.bat`.
+   This registers the native-messaging host for Chrome/Edge (and Chromium).
 3. **Reload the extension** (↻ on its card) so it picks up the host.
-4. Open the popup — the footer should read **`engine: yt-dlp <version>`**.
+4. Open the popup — the footer should read **`engine: yt-dlp <version> + ffmpeg + deno`**.
 
-> Moved the folder after installing? Re-run `npm run install-host` (the registry
-> points at an absolute path). Uninstall any time with `npm run uninstall-host`.
+> Moved the folder after installing? Re-run `npm run install-host` (it records an
+> absolute path). Uninstall any time with `npm run uninstall-host`.
 
 ### macOS / Linux
 
-`npm run fetch-tools` only auto-installs binaries on Windows. Elsewhere, install
-the tools with your package manager (`brew install yt-dlp ffmpeg`, etc.) — the
-host finds them on PATH. The `install-host` step is currently Windows-only
-(PowerShell + registry); a shell-script equivalent is on the roadmap.
+`npm run install-host` works on all three platforms (registry on Windows; a
+manifest dropped into each browser's `NativeMessagingHosts` directory on
+macOS/Linux). `npm run fetch-tools` only auto-downloads the binaries on Windows —
+elsewhere install them with your package manager (`brew install yt-dlp ffmpeg deno`,
+etc.); the host finds them on PATH.
 
 ## Usage
 
@@ -82,14 +88,15 @@ src/
   downloader/                progress UI; drives the native host over a Port
   lib/util.js                shared helpers
   native-host/host.js        Node native-messaging host: spawns yt-dlp, streams progress
-streamgrabitel-host.bat          launcher Chrome invokes (runs host.js on Node)
+streamgrabitel-host.bat          Windows launcher Chrome invokes (runs host.js on Node)
+streamgrabitel-host.sh           macOS/Linux launcher
 scripts/
   make-icons.mjs             dependency-free PNG icons
-  fetch-tools.mjs            downloads yt-dlp + ffmpeg + deno (JS runtime) into bin/
-  install-host.ps1           registers the native host (Chrome + Edge)
-  uninstall-host.ps1         removes it
+  fetch-tools.mjs            downloads yt-dlp + ffmpeg + deno into bin/ (Windows auto)
+  install-host.mjs           registers/unregisters the native host (all OSes)
   gen-key.mjs                regenerates the pinned key + extension id
-bin/                         (generated) yt-dlp + ffmpeg
+test/                        unit tests for the detector + helpers (npm test)
+bin/                         (generated) yt-dlp + ffmpeg + deno
 icons/                       (generated) toolbar icons
 ```
 
@@ -100,15 +107,20 @@ lines stream back over the Port and render as a bar. File bytes never pass throu
 the browser.
 
 **Native-messaging protocol** (4-byte LE length + JSON):
-`{action:'ping'}` → `{type:'pong', ytdlp, ffmpeg}` ·
-`{action:'download', url, quality}` → `started` / `progress` / `log` / `done` / `error` ·
-`{action:'cancel'}`.
+`{action:'ping'}` → `{type:'pong', ytdlp, ffmpeg, deno}` ·
+`{action:'preview', url}` → `{type:'preview', title, thumbnail, duration, heights, …}` ·
+`{action:'download', url, quality, subs}` → `started` / `progress` / `phase` / `log` / `done` / `cancelled` / `error` ·
+`{action:'cancel'}` · `{action:'reveal'|'open', file}`.
 
-## Limitations
+## Limitations & distribution
 
 - ❌ **DRM** (Widevine / FairPlay) — still impossible, by design.
 - The helper requires a **one-time install** (it runs the local yt-dlp/ffmpeg tools).
-- `install-host` is Windows-only for now (macOS/Linux: see above).
+- On Windows the host launches via a `.bat`, so a console window may briefly flash
+  on each download (cosmetic).
+- The Chrome Web Store can distribute the *extension* but **not** the native host,
+  so a separate one-time host install is always required — this is inherent to
+  native messaging, not specific to StreamGrabitel.
 
 ## License
 
