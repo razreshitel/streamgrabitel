@@ -1,0 +1,15 @@
+* text=auto
+
+# POSIX launcher must stay LF or sh breaks on \r
+*.sh   text eol=lf
+# Windows batch prefers CRLF
+*.bat  text eol=crlf
+
+*.js   text eol=lf
+*.mjs  text eol=lf
+*.json text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.md   text eol=lf
+
+*.png  binary
