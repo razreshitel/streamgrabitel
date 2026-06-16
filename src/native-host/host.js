@@ -151,7 +151,7 @@ function preview(msg) {
   let err = '';
   let proc;
   try {
-    proc = spawn(YTDLP, ['-J', '--no-playlist', '--no-warnings', ...jsRuntimeArgs(), url], { windowsHide: true });
+    proc = spawn(YTDLP, ['-J', '--no-playlist', '--no-warnings', ...jsRuntimeArgs(), '--', url], { windowsHide: true });
   } catch (e) {
     return send({ type: 'previewError', message: `Could not launch yt-dlp: ${e.message}` });
   }
@@ -224,13 +224,16 @@ function download(msg) {
     '--no-playlist',
     '--no-mtime',
     '--no-part',
+    '--windows-filenames', // sanitize reserved/invalid names so metadata can't steer the path
+    '-P',
+    outDir, // fixed download root, independent of the (metadata-driven) name template
     '-o',
-    path.join(outDir, '%(title).180B [%(id)s].%(ext)s'),
+    '%(title).180B [%(id)s].%(ext)s',
     ...(QUALITY[msg.quality] || QUALITY.best),
   ];
   if (FFMPEG_DIR) args.push('--ffmpeg-location', FFMPEG_DIR);
   args.push(...jsRuntimeArgs());
-  args.push(url);
+  args.push('--', url); // end-of-options: never treat the URL as a flag
 
   send({ type: 'started', url, outDir, ytdlp: YTDLP });
 
