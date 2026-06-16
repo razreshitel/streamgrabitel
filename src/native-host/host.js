@@ -89,6 +89,26 @@ process.stdin.on('end', () => process.exit(0));
 
 // --- request handling -------------------------------------------------------
 let current = null;
+let cancelRequested = false;
+
+// yt-dlp spawns ffmpeg as a child; proc.kill() leaves it orphaned on Windows.
+// Kill the whole tree so nothing keeps holding the output file.
+function killTree(proc) {
+  if (!proc) return;
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('taskkill', ['/PID', String(proc.pid), '/T', '/F']);
+    } catch {
+      /* already gone */
+    }
+  } else {
+    try {
+      proc.kill('SIGKILL');
+    } catch {
+      /* already gone */
+    }
+  }
+}
 
 function handle(msg) {
   switch (msg.action) {
@@ -99,7 +119,8 @@ function handle(msg) {
     case 'download':
       return download(msg);
     case 'cancel':
-      if (current) current.kill();
+      cancelRequested = true;
+      killTree(current);
       return;
     default:
       send({ type: 'error', message: `unknown action: ${msg.action}` });
@@ -192,6 +213,7 @@ const QUALITY = {
 
 function download(msg) {
   if (current) return send({ type: 'error', message: 'A download is already running.' });
+  cancelRequested = false;
 
   const url = String(msg.url || '');
   if (!/^https?:\/\//i.test(url)) return send({ type: 'error', message: 'Invalid or missing URL.' });
@@ -253,7 +275,8 @@ function download(msg) {
   });
   proc.on('close', (code) => {
     current = null;
-    if (code === 0) send({ type: 'done', file: finalFile, outDir });
+    if (cancelRequested) send({ type: 'cancelled' });
+    else if (code === 0) send({ type: 'done', file: finalFile, outDir });
     else send({ type: 'error', message: `yt-dlp exited with code ${code}.`, detail: stderrTail.trim() });
   });
 }

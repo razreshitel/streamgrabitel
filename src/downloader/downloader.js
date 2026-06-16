@@ -172,6 +172,14 @@ function onMessage(msg) {
       cleanup();
       endRun();
       break;
+    case 'cancelled':
+      finished = true;
+      setStatus('Cancelled.');
+      setProgress(0);
+      $('bar').classList.remove('indeterminate');
+      cleanup();
+      endRun();
+      break;
     case 'error':
       fail(msg.message + (msg.detail ? `\n${msg.detail}` : ''));
       break;
