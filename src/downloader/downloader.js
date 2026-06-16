@@ -24,6 +24,8 @@ async function init() {
   const id = new URLSearchParams(location.search).get('id');
   const data = await chrome.storage.session.get(`dl:${id}`);
   item = data[`dl:${id}`];
+  // Consume it so session storage doesn't grow unbounded across downloads.
+  chrome.storage.session.remove(`dl:${id}`);
   if (!item) {
     $('title').textContent = 'Download not found';
     $('subtitle').textContent = 'The session expired — re-open it from the StreamGrabitel popup.';
@@ -195,13 +197,13 @@ function fail(message) {
   endRun();
 }
 
-function hostError() {
+function hostError(detail) {
   finished = true;
   showWarn(
-    'The local helper isn’t installed. In the streamgrabitel folder run:  npm run install-host  ' +
+    'The local helper isn’t reachable. In the streamgrabitel folder run:  npm run install-host  ' +
       '(and "npm run fetch-tools" once to get yt-dlp + ffmpeg), then reload the extension.',
   );
-  setStatus('Native helper not found.', 'error');
+  setStatus(`Native helper unavailable${detail ? `: ${detail}` : ''}.`, 'error');
   setProgress(0);
   $('bar').classList.remove('indeterminate');
   endRun();
