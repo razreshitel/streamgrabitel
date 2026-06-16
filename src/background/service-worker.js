@@ -142,7 +142,31 @@ chrome.webRequest.onBeforeRequest.addListener(
   { urls: ['<all_urls>'] },
 );
 
-chrome.tabs.onRemoved.addListener((tabId) => clearTab(tabId));
+// SPA navigations (history API) change the tab URL without a main_frame request,
+// so also clear when the path changes. Ignore pure query/hash changes (some
+// players rewrite ?t=… during playback) to avoid wiping the list mid-watch.
+const lastPath = new Map(); // tabId -> origin+pathname
+function pathKey(url) {
+  try {
+    const u = new URL(url);
+    return u.origin + u.pathname;
+  } catch {
+    return url;
+  }
+}
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (!changeInfo.url) return;
+  const pk = pathKey(changeInfo.url);
+  if (lastPath.get(tabId) !== pk) {
+    lastPath.set(tabId, pk);
+    clearTab(tabId);
+  }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  lastPath.delete(tabId);
+  clearTab(tabId);
+});
 
 // --- messaging --------------------------------------------------------------
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
