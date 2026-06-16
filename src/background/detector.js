@@ -88,5 +88,3 @@ export function classify(details) {
 
   return null;
 }
-
-export { INTERESTING_TYPES };

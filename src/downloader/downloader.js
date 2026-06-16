@@ -2,6 +2,8 @@
 // The host writes the file straight to disk and streams progress back here, so
 // there are no browser memory limits and YouTube/HLS/DASH/direct all work.
 
+import { formatDuration } from '../lib/util.js';
+
 const HOST = 'com.streamgrabitel.host';
 const $ = (id) => document.getElementById(id);
 
@@ -44,16 +46,6 @@ async function init() {
 }
 
 // --- preview (metadata only, before downloading) ----------------------------
-function fmtDuration(sec) {
-  if (!sec || sec < 0) return '';
-  sec = Math.round(sec);
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  const pad = (x) => String(x).padStart(2, '0');
-  return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
-}
-
 function runPreview() {
   $('pmeta').textContent = 'Loading preview…';
   let pport;
@@ -90,7 +82,7 @@ function renderPreview(info) {
     img.onerror = () => ($('thumbWrap').hidden = true);
   }
   const bits = [];
-  if (info.duration) bits.push(fmtDuration(info.duration));
+  if (info.duration) bits.push(formatDuration(info.duration));
   if (info.uploader) bits.push(info.uploader);
   if (info.heights?.length) bits.push(`up to ${info.heights[0]}p`);
   if (info.extractor) bits.push(info.extractor);
