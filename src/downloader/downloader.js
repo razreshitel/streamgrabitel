@@ -205,9 +205,11 @@ function onMessage(msg) {
       cleanup();
       endRun();
       break;
-    case 'error':
-      fail(msg.message + (msg.detail ? `\n${msg.detail}` : ''));
+    case 'error': {
+      const friendly = friendlyError(msg.detail || msg.message);
+      fail(friendly || msg.message, msg.detail || '');
       break;
+    }
   }
 }
 
@@ -220,14 +222,40 @@ function cancel() {
   setStatus('Cancelling…');
 }
 
-function fail(message) {
+function fail(headline, detail = '') {
   finished = true;
-  setStatus(message.split('\n')[0], 'error');
-  if (message.includes('\n')) appendLog(message);
+  setStatus(headline, 'error');
+  if (detail) appendLog(detail);
   setProgress(0);
   $('bar').classList.remove('indeterminate');
   cleanup();
   endRun();
+}
+
+// Turn common yt-dlp stderr into a plain-language, actionable message.
+function friendlyError(text) {
+  const d = (text || '').toLowerCase();
+  if (/sign in to confirm|not a bot|confirm you.?re not a bot/.test(d))
+    return 'YouTube wants a sign-in / bot check for this video. Try again shortly.';
+  if (/requested format is not available/.test(d))
+    return 'That quality isn’t available — try “Best available”.';
+  if (/http error 429|too many requests/.test(d))
+    return 'Rate-limited by the server — wait a moment and retry.';
+  if (/http error 403|forbidden/.test(d))
+    return 'The server blocked the request (403). Try again in a moment.';
+  if (/private video|video unavailable|video is unavailable|members-only/.test(d))
+    return 'This video is private, members-only, or unavailable.';
+  if (/not available in your country|geo|in your location/.test(d))
+    return 'This video is geo-blocked in your region.';
+  if (/age.?restricted|confirm your age|inappropriate for some/.test(d))
+    return 'Age-restricted video — it may require sign-in.';
+  if (/drm|protected stream|protected content/.test(d))
+    return 'This stream is DRM-protected and can’t be downloaded.';
+  if (/unsupported url|unable to extract|no video formats|nothing to download/.test(d))
+    return 'No downloadable video found on this page.';
+  if (/ffmpeg|postprocess/.test(d))
+    return 'Conversion failed — is ffmpeg installed? Run “npm run fetch-tools”.';
+  return null;
 }
 
 function hostError(detail) {
