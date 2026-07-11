@@ -13,6 +13,12 @@ files, with no browser memory limits.
 > open source, so the whole pipeline is auditable end to end. For YouTube this is
 > as reliable as yt-dlp itself, which tracks YouTube's changes closely.
 
+<img src="docs/popup.png" width="470" alt="The popup on a YouTube page: main video with live download progress, a detected HLS stream below, engine line in the footer">
+
+*The popup on a YouTube page: the page's main video (thumbnail, title, real
+resolutions) downloading with inline progress, a detected HLS stream below it,
+and the local yt-dlp + ffmpeg engine in the footer.*
+
 ---
 
 ## Features
