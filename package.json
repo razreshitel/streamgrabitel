@@ -1,6 +1,6 @@
 {
-  "name": "streamgrabitel",
-  "version": "0.2.0",
+  "name": "videograbitel",
+  "version": "0.4.0",
   "description": "Open-source video downloader — browser detector + local yt-dlp/ffmpeg helper.",
   "type": "module",
   "private": true,

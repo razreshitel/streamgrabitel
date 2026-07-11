@@ -1,9 +1,10 @@
-// StreamGrabitel background service worker (MV3).
+// VideoGrabitel background service worker (MV3).
 // Observes network responses, classifies media, keeps a per-tab catalogue,
-// drives the toolbar badge, and answers the popup / opens the downloader.
+// drives the toolbar badge, and owns the download queue (see queue.js).
 
 import { classify } from './detector.js';
 import { uid, basename, hostOf } from '../lib/util.js';
+import { handleQueueMessage } from './queue.js';
 
 const MAX_PER_TAB = 60;
 const BADGE_COLOR = '#4F46E5';
@@ -170,6 +171,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 // --- messaging --------------------------------------------------------------
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (handleQueueMessage(msg, sendResponse)) return true; // queue owns it (may reply async)
   (async () => {
     await ensureLoaded();
     if (msg.type === 'GET_MEDIA') {
@@ -180,23 +182,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     }
     if (msg.type === 'CLEAR_TAB') {
       clearTab(msg.tabId);
-      sendResponse({ ok: true });
-      return;
-    }
-    if (msg.type === 'START_DOWNLOAD') {
-      const item = { ...msg.item };
-      // Enrich with page context for a nicer default filename.
-      try {
-        const tab = await chrome.tabs.get(item.tabId);
-        item.pageTitle = tab?.title || '';
-        item.pageUrl = tab?.url || '';
-      } catch {
-        /* tab may be gone */
-      }
-      await chrome.storage.session.set({ [`dl:${item.id}`]: item });
-      await chrome.tabs.create({
-        url: chrome.runtime.getURL(`src/downloader/downloader.html?id=${item.id}`),
-      });
       sendResponse({ ok: true });
       return;
     }

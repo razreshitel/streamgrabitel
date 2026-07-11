@@ -1,8 +1,8 @@
-// StreamGrabitel native messaging host.
-// Chrome launches this (via streamgrabitel-host.bat) and talks to it over stdio using
+// VideoGrabitel native messaging host.
+// Chrome launches this (via videograbitel-host.bat) and talks to it over stdio using
 // the native-messaging framing: a 4-byte little-endian length prefix + UTF-8 JSON.
 // It bridges the extension to local yt-dlp + ffmpeg binaries — that's what lets
-// StreamGrabitel handle YouTube and large files without any in-browser limits.
+// VideoGrabitel handle YouTube and large files without any in-browser limits.
 
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -29,6 +29,23 @@ const DENO = fs.existsSync(path.join(BIN, 'deno' + EXE)) ? path.join(BIN, 'deno'
 // Shared yt-dlp args: point it at our bundled JS runtime when present.
 function jsRuntimeArgs() {
   return DENO ? ['--js-runtimes', `deno:${DENO}`] : [];
+}
+
+// Optional proxy (the extension's VPN runs inside Chrome only; the host is a
+// separate OS process, so it routes traffic itself — a proxy lets it match).
+function proxyArgs(proxy) {
+  const p = String(proxy || '').trim();
+  return /^[a-z0-9.+-]+:\/\//i.test(p) ? ['--proxy', p] : [];
+}
+
+// Turn a user-supplied name into a safe yt-dlp output base (no path traversal,
+// no '%' template injection, no trailing dot). Returns '' if nothing usable.
+function safeName(name) {
+  let s = String(name || '').trim();
+  s = s.replace(/[\\/:*?"<>|%]/g, '_'); // strip unsafe chars (keep spaces & hyphens)
+  s = s.replace(/\.(mp4|mkv|webm|mov|m4v|mp3|m4a|aac|opus|ogg|wav|flac)$/i, ''); // avoid double ext
+  s = s.replace(/[.\s]+$/, '').trim();
+  return s.slice(0, 180);
 }
 
 // The Downloads folder can be relocated (e.g. to another drive or OneDrive), so
@@ -75,7 +92,7 @@ process.stdin.on('data', (chunk) => {
     const len = inbuf.readUInt32LE(0);
     // A sane request is tiny; a huge length means a corrupt/desynced stream.
     if (len > 64 * 1024 * 1024) {
-      process.stderr.write('streamgrabitel-host: framing desync, aborting\n');
+      process.stderr.write('videograbitel-host: framing desync, aborting\n');
       process.exit(1);
     }
     if (inbuf.length < 4 + len) break;
@@ -195,7 +212,11 @@ function preview(msg) {
   let err = '';
   let proc;
   try {
-    proc = spawn(YTDLP, ['-J', '--no-playlist', '--no-warnings', ...jsRuntimeArgs(), '--', url], { windowsHide: true });
+    proc = spawn(
+      YTDLP,
+      ['-J', '--no-playlist', '--no-warnings', ...proxyArgs(msg.proxy), ...jsRuntimeArgs(), '--', url],
+      { windowsHide: true },
+    );
   } catch (e) {
     return send({ type: 'previewError', message: `Could not launch yt-dlp: ${e.message}` });
   }
@@ -267,6 +288,11 @@ function download(msg) {
   if (!/^https?:\/\//i.test(url)) return send({ type: 'error', message: 'Invalid or missing URL.' });
 
   const outDir = downloadsDir();
+  // A user-renamed download uses that name as the output base; otherwise fall back
+  // to yt-dlp's metadata title. Either way the name is sanitized and the root is
+  // pinned with -P, so the (metadata- or user-) name can never steer the path.
+  const custom = safeName(msg.filename);
+  const nameTpl = custom ? `${custom}.%(ext)s` : '%(title).180B [%(id)s].%(ext)s';
   const args = [
     '--newline',
     '--no-playlist',
@@ -279,13 +305,14 @@ function download(msg) {
     '-P',
     outDir, // fixed download root, independent of the (metadata-driven) name template
     '-o',
-    '%(title).180B [%(id)s].%(ext)s',
+    nameTpl,
     ...qualityArgs(msg.quality),
   ];
   if (msg.subs && msg.quality !== 'audio') {
     args.push('--embed-subs', '--write-auto-subs', '--sub-langs', 'en.*,en');
   }
   if (FFMPEG_DIR) args.push('--ffmpeg-location', FFMPEG_DIR);
+  args.push(...proxyArgs(msg.proxy));
   args.push(...jsRuntimeArgs());
   args.push('--', url); // end-of-options: never treat the URL as a flag
 

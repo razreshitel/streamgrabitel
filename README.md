@@ -1,4 +1,4 @@
-# StreamGrabitel
+# VideoGrabitel
 
 A **fully open-source video downloader** for Chrome, with **nothing
 closed-source**.
@@ -17,17 +17,21 @@ files, with no browser memory limits.
 
 ## Features
 
-- ▶️ **YouTube** and ~1800 other sites (anything yt-dlp supports) — via the
-  "Download this page's video" button.
-- 🖼 **Preview before downloading** — thumbnail, title, duration, and the
-  resolutions the video actually offers.
-- 🎞 **HLS / DASH / direct files** detected automatically (deduped); the toolbar
-  badge shows a count.
+- ▶️ **YouTube** and ~1800 other sites (anything yt-dlp supports) — the page's main
+  video is listed first, no extra button.
+- 🖼 **Everything in the popup** — thumbnail, title, duration, and live download
+  progress, all inline. No extra tab or page.
+- 🎞 **HLS / DASH / direct files** detected automatically (deduped) and listed
+  alongside the page's main video.
 - 🎚 **Quality**: pick from the video's real resolutions, or audio-only (mp3).
   Defaults to H.264 ≤1080p so it plays everywhere.
-- 💬 **Optional subtitle embedding** (English).
+- ✏️ **Rename before downloading** — edit the title and that becomes the filename.
+- 🌐 **Optional proxy** (behind ⚙) — your in-Chrome VPN doesn't reach the helper,
+  so point yt-dlp at a proxy when you need one.
 - 📂 **Open file / show in folder** when a download finishes.
-- 🔁 **Resumable**, with automatic retries on flaky connections.
+- 🔁 **Keeps downloading after you close the popup** — the download runs in the
+  service worker; reopen the popup to see current progress. Auto-retries on flaky
+  connections.
 - 💾 **No memory limits** — yt-dlp streams straight to your Downloads folder.
 - 🔐 **100% local & private.** Nothing is uploaded. MIT licensed.
 
@@ -40,12 +44,12 @@ files, with no browser memory limits.
 ## Install
 
 ```bash
-cd streamgrabitel
+cd videograbitel
 npm run setup          # generate icons + download yt-dlp, ffmpeg & deno into bin/
 ```
 
 1. **Load the extension:** `chrome://extensions` → enable **Developer mode** →
-   **Load unpacked** → select the `streamgrabitel/` folder.
+   **Load unpacked** → select the `videograbitel/` folder.
    (The extension ID is pinned to `eogbccakibimjjinpjpbenjnmfgobegc` via the
    manifest `key`, so the helper can whitelist it.)
 2. **Register the helper:**
@@ -69,12 +73,17 @@ etc.); the host finds them on PATH.
 
 ## Usage
 
-1. Open any page with a video.
-2. Click the **StreamGrabitel** toolbar icon.
-3. Pick a **quality**, then either:
-   - **⬇ Download this page's video** — grabs the page's main video (YouTube etc.), or
-   - **Get** on any auto-detected HLS/DASH/direct item.
-4. A tab opens showing live progress; the file lands in your **Downloads** folder.
+1. Open any page with a video and click the **VideoGrabitel** toolbar icon.
+2. The popup lists the page's **main video first** (with thumbnail, title and the
+   resolutions it actually offers), then any detected HLS/DASH/direct streams.
+3. Optionally **✎ rename** it (the name becomes the filename) and pick a **quality**.
+4. Hit **⬇ Download** — progress shows inline in the same card. It keeps running even
+   if you close the popup; reopen to check on it, then **Open** / **Show in folder**
+   when it's done. Files land in your **Downloads** folder.
+
+Behind **⚙** there's an optional **proxy** (with an on/off toggle): the helper runs
+outside Chrome, so an in-browser VPN doesn't apply to it — set a proxy yt-dlp can use
+(`socks5://…` or `http://…`) if you need to reach geo-blocked content.
 
 ---
 
@@ -83,44 +92,55 @@ etc.); the host finds them on PATH.
 ```
 manifest.json                MV3 manifest (pinned key + nativeMessaging perm)
 src/
-  background/                webRequest sniffer → per-tab catalogue + badge
-  popup/                     quality picker, "download page", detected list, engine status
-  downloader/                progress UI; drives the native host over a Port
+  background/
+    service-worker.js        webRequest sniffer → per-tab catalogue + badge
+    detector.js              classifies media responses
+    queue.js                 download queue (owns the native Ports; in-memory)
+    queue-core.js            pure queue helpers (unit-tested)
+  popup/                     the whole UI: video cards, preview, rename, quality,
+                             inline progress, and the ⚙ proxy setting
   lib/util.js                shared helpers
   native-host/host.js        Node native-messaging host: spawns yt-dlp, streams progress
-streamgrabitel-host.bat          Windows launcher Chrome invokes (runs host.js on Node)
-streamgrabitel-host.sh           macOS/Linux launcher
+videograbitel-host.exe          (generated) Windows no-console launcher (from scripts/launcher.cs)
+videograbitel-host.bat          Windows fallback launcher (used if csc.exe is unavailable)
+videograbitel-host.sh           macOS/Linux launcher
 scripts/
   make-icons.mjs             dependency-free PNG icons
   fetch-tools.mjs            downloads yt-dlp + ffmpeg + deno into bin/ (Windows auto)
-  install-host.mjs           registers/unregisters the native host (all OSes)
+  install-host.mjs           compiles the launcher + registers the native host (all OSes)
+  launcher.cs                GUI-subsystem launcher source (compiled at install on Windows)
   gen-key.mjs                regenerates the pinned key + extension id
-test/                        unit tests for the detector + helpers (npm test)
+test/                        unit tests for the detector, queue + helpers (npm test)
 bin/                         (generated) yt-dlp + ffmpeg + deno
 icons/                       (generated) toolbar icons
 ```
 
-**Flow:** extension detects media (or you click "download page") → the downloader
-page opens a `chrome.runtime.connectNative` Port to `com.streamgrabitel.host` → the
-host runs `yt-dlp` with the chosen quality, writing to `~/Downloads` → progress
-lines stream back over the Port and render as a bar. File bytes never pass through
-the browser.
+**Flow:** the popup previews the page's video and lists detected streams → on
+**Download** it queues a job in the **service worker**, which opens a
+`chrome.runtime.connectNative` Port to `com.videograbitel.host` (one host process per
+download) → the host runs `yt-dlp` with the chosen quality / filename / proxy, writing
+to your Downloads folder → progress streams back over the Port and the popup renders it
+live (and re-syncs via `queue:list` whenever it reopens). Because the **worker** (not
+the popup) owns the Port, closing the popup never stops a download. File bytes never
+pass through the browser.
 
 **Native-messaging protocol** (4-byte LE length + JSON):
 `{action:'ping'}` → `{type:'pong', ytdlp, ffmpeg, deno}` ·
-`{action:'preview', url}` → `{type:'preview', title, thumbnail, duration, heights, …}` ·
-`{action:'download', url, quality, subs}` → `started` / `progress` / `phase` / `log` / `done` / `cancelled` / `error` ·
+`{action:'preview', url, proxy}` → `{type:'preview', title, thumbnail, duration, heights, …}` ·
+`{action:'download', url, quality, subs, filename, proxy}` → `started` / `progress` / `phase` / `log` / `done` / `cancelled` / `error` ·
 `{action:'cancel'}` · `{action:'reveal'|'open', file}`.
 
 ## Limitations & distribution
 
 - ❌ **DRM** (Widevine / FairPlay) — still impossible, by design.
 - The helper requires a **one-time install** (it runs the local yt-dlp/ffmpeg tools).
-- On Windows the host launches via a `.bat`, so a console window may briefly flash
-  on each download (cosmetic).
+- On Windows the host launches via a compiled no-console helper
+  (`videograbitel-host.exe`, built at install time from `scripts/launcher.cs` with
+  the in-box C# compiler), so **no console window appears**. If that compiler isn't
+  available it falls back to a `.bat`, which can briefly flash a console.
 - The Chrome Web Store can distribute the *extension* but **not** the native host,
   so a separate one-time host install is always required — this is inherent to
-  native messaging, not specific to StreamGrabitel.
+  native messaging, not specific to VideoGrabitel.
 
 ## License
 

@@ -4,39 +4,90 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="popup.css" />
-    <title>StreamGrabitel</title>
+    <title>VideoGrabitel</title>
   </head>
   <body>
     <header class="bar">
       <div class="brand">
         <span class="dot"></span>
-        <strong>StreamGrabitel</strong>
+        <strong>VideoGrabitel</strong>
       </div>
-      <button id="clear" class="ghost" title="Clear detected list for this tab">Clear</button>
+      <div class="barRight">
+        <select id="quality" class="quality" aria-label="Quality">
+          <option value="best">Best (≤1080p)</option>
+          <option value="1080">1080p</option>
+          <option value="720">720p</option>
+          <option value="480">480p</option>
+          <option value="audio">Audio (mp3)</option>
+        </select>
+        <button id="gear" class="icon" title="Settings" aria-label="Settings">⚙</button>
+      </div>
     </header>
 
-    <div class="controls">
-      <label class="qlabel" for="quality">Quality</label>
-      <select id="quality">
-        <option value="best">Best available</option>
-        <option value="1080">Up to 1080p</option>
-        <option value="720">Up to 720p</option>
-        <option value="audio">Audio only (mp3)</option>
-      </select>
-    </div>
+    <section id="settings" class="settings" hidden>
+      <label class="switch">
+        <input type="checkbox" id="proxyOn" />
+        <span>Route downloads through a proxy</span>
+      </label>
+      <input
+        type="text"
+        id="proxyUrl"
+        class="proxyUrl"
+        spellcheck="false"
+        placeholder="socks5://127.0.0.1:1080  or  http://host:port"
+      />
+      <p class="hint">
+        Downloads run outside Chrome, so your in-browser VPN doesn’t apply. Point this at a proxy yt-dlp can use.
+      </p>
+    </section>
 
-    <button id="page" class="primary">⬇ Download this page's video</button>
-
-    <div class="section-label">Detected on this page</div>
     <main id="list" class="list" aria-live="polite"></main>
-    <p id="empty" class="empty">
-      Nothing extra detected — the button above grabs the page's main video
-      (YouTube, etc.) via yt-dlp.
-    </p>
+    <p id="empty" class="empty">Looking for video on this page…</p>
 
     <footer class="foot">
       <span id="status" class="hint">engine: checking…</span>
     </footer>
+
+    <template id="cardTpl">
+      <div class="card">
+        <div class="thumbWrap">
+          <img class="thumb" alt="" hidden />
+          <span class="dur" hidden></span>
+        </div>
+        <div class="info">
+          <div class="titleRow">
+            <span class="star" hidden title="This page’s main video">★</span>
+            <div class="title"></div>
+            <button class="remove icon" title="Remove from list" aria-label="Remove">×</button>
+          </div>
+          <div class="sub"></div>
+
+          <div class="actions">
+            <button class="rename icon" title="Rename" aria-label="Rename">✎</button>
+            <button class="dl">⬇ Download</button>
+          </div>
+
+          <div class="progress" hidden>
+            <div class="barWrap"><div class="bar"></div></div>
+            <div class="prow">
+              <span class="pstatus"></span>
+              <button class="cancel">Cancel</button>
+            </div>
+          </div>
+
+          <div class="doneRow" hidden>
+            <span class="doneMsg">Saved</span>
+            <button class="open">Open</button>
+            <button class="folder">Show in folder</button>
+          </div>
+
+          <div class="errRow" hidden>
+            <span class="errMsg"></span>
+            <button class="retry">Retry</button>
+          </div>
+        </div>
+      </div>
+    </template>
 
     <script type="module" src="popup.js"></script>
   </body>

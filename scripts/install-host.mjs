@@ -1,4 +1,4 @@
-// Registers (or unregisters) the StreamGrabitel native messaging host with
+// Registers (or unregisters) the VideoGrabitel native messaging host with
 // Chrome/Edge/Chromium on Windows, macOS and Linux — one cross-platform script.
 //
 //   npm run install-host
@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import os from 'node:os';
 
-const HOST_NAME = 'com.streamgrabitel.host';
+const HOST_NAME = 'com.videograbitel.host';
 // Pinned extension id, derived from manifest.json "key" (see scripts/gen-key.mjs).
 const EXTENSION_ID = 'eogbccakibimjjinpjpbenjnmfgobegc';
 
@@ -22,18 +22,45 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const uninstall = process.argv.includes('--uninstall');
 const home = os.homedir();
 
-const launcher = process.platform === 'win32'
-  ? join(ROOT, 'streamgrabitel-host.bat')
-  : join(ROOT, 'streamgrabitel-host.sh');
+const BAT = join(ROOT, 'videograbitel-host.bat');
+const SH = join(ROOT, 'videograbitel-host.sh');
+const EXE = join(ROOT, 'videograbitel-host.exe');
 
-const manifest = {
-  name: HOST_NAME,
-  description: 'StreamGrabitel download helper (yt-dlp + ffmpeg)',
-  path: launcher,
-  type: 'stdio',
-  allowed_origins: [`chrome-extension://${EXTENSION_ID}/`],
-};
-const json = JSON.stringify(manifest, null, 2);
+// Manifest path is chosen per-OS at install time (see install*). On Windows we
+// prefer a compiled no-console launcher; elsewhere it's the .sh.
+function manifestJson(launcherPath) {
+  return JSON.stringify(
+    {
+      name: HOST_NAME,
+      description: 'VideoGrabitel download helper (yt-dlp + ffmpeg)',
+      path: launcherPath,
+      type: 'stdio',
+      allowed_origins: [`chrome-extension://${EXTENSION_ID}/`],
+    },
+    null,
+    2,
+  );
+}
+
+// Build the GUI-subsystem launcher (scripts/launcher.cs) with the in-box C#
+// compiler so Chrome launches the host with NO console window flashing. Returns
+// the exe path, or null to fall back to the .bat (which can flash a console).
+function buildWindowsLauncher() {
+  const src = join(ROOT, 'scripts', 'launcher.cs');
+  if (!existsSync(src)) return null;
+  const win = process.env.WINDIR || 'C:\\Windows';
+  const csc = [
+    join(win, 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe'),
+    join(win, 'Microsoft.NET', 'Framework', 'v4.0.30319', 'csc.exe'),
+  ].find((c) => existsSync(c));
+  if (!csc) return null;
+  try {
+    execFileSync(csc, ['/nologo', '/target:winexe', '/optimize+', `/out:${EXE}`, src], { stdio: 'ignore' });
+    return existsSync(EXE) ? EXE : null;
+  } catch {
+    return null;
+  }
+}
 
 // Per-OS directories where Chromium-family browsers look for host manifests.
 function manifestDirs() {
@@ -59,12 +86,19 @@ const WIN_REG_KEYS = [
 ];
 
 function installWindows() {
+  const exe = buildWindowsLauncher();
+  const launcherPath = exe || BAT;
   const manifestPath = join(ROOT, `${HOST_NAME}.json`);
-  writeFileSync(manifestPath, json);
+  writeFileSync(manifestPath, manifestJson(launcherPath));
   for (const key of WIN_REG_KEYS) {
     execFileSync('reg', ['add', key, '/ve', '/d', manifestPath, '/f'], { stdio: 'ignore' });
     console.log(`registered ${key}`);
   }
+  console.log(
+    exe
+      ? 'launcher: compiled videograbitel-host.exe (no console window)'
+      : 'launcher: videograbitel-host.bat (a console window may briefly flash — csc.exe not found)',
+  );
 }
 
 function uninstallWindows() {
@@ -76,11 +110,23 @@ function uninstallWindows() {
       /* not present */
     }
   }
-  rmSync(join(ROOT, `${HOST_NAME}.json`), { force: true });
+  // Registry keys are gone above, so the host is already unregistered; don't let a
+  // locked file abort the rest. The .exe is locked while a download is in flight.
+  try {
+    rmSync(join(ROOT, `${HOST_NAME}.json`), { force: true });
+  } catch {
+    /* leave it */
+  }
+  try {
+    rmSync(EXE, { force: true });
+  } catch {
+    console.log('note: videograbitel-host.exe is in use — close Chrome, then delete it manually.');
+  }
 }
 
 function installPosix() {
-  if (existsSync(launcher)) chmodSync(launcher, 0o755);
+  if (existsSync(SH)) chmodSync(SH, 0o755);
+  const json = manifestJson(SH);
   for (const dir of manifestDirs()) {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, `${HOST_NAME}.json`), json);
@@ -95,6 +141,7 @@ function uninstallPosix() {
   console.log('removed host manifests');
 }
 
+const launcher = process.platform === 'win32' ? BAT : SH;
 if (!existsSync(launcher) && !uninstall) {
   console.error(`Launcher not found: ${launcher}`);
   process.exit(1);

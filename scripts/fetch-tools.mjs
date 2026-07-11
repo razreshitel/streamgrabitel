@@ -1,4 +1,4 @@
-// Downloads the engine binaries into bin/ (gitignored) so StreamGrabitel is
+// Downloads the engine binaries into bin/ (gitignored) so VideoGrabitel is
 // self-contained: yt-dlp (extraction, incl. YouTube), ffmpeg (merge video+audio),
 // and Deno (the JS runtime yt-dlp uses to solve YouTube's challenges reliably).
 // All open source. Idempotent — re-running only fetches what's missing.

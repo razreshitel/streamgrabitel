@@ -7,6 +7,9 @@
 # Generated native-messaging host manifest (written by the install script)
 /com.*.host.json
 
+# Generated no-console launcher (compiled from scripts/launcher.cs by install-host)
+/videograbitel-host.exe
+
 # Legacy: old in-browser ffmpeg.wasm vendor dir (no longer used)
 /vendor/
 

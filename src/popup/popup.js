@@ -1,127 +1,318 @@
-import { formatBytes } from '../lib/util.js';
+// VideoGrabitel popup — the whole UI lives here: it lists the page's main video
+// (first) plus any detected streams, previews them, lets you rename + pick quality,
+// and shows live progress inline. The actual download runs in the service worker
+// (queue.js), so it keeps going after this popup closes; reopening re-syncs state.
 
-const HOST = 'com.streamgrabitel.host';
+import { formatDuration, formatBytes } from '../lib/util.js';
+
 const listEl = document.getElementById('list');
-const clearBtn = document.getElementById('clear');
-const pageBtn = document.getElementById('page');
-const qualityEl = document.getElementById('quality');
+const emptyEl = document.getElementById('empty');
 const statusEl = document.getElementById('status');
+const gearBtn = document.getElementById('gear');
+const settingsEl = document.getElementById('settings');
+const proxyOn = document.getElementById('proxyOn');
+const proxyUrl = document.getElementById('proxyUrl');
+const qualityEl = document.getElementById('quality');
+const tpl = document.getElementById('cardTpl');
 
 let tab = null;
-let pollTimer = null;
+let settings = { proxyEnabled: false, proxyUrl: '' };
+/** @type {any[]} */
+let candidates = [];
+/** @type {Map<string, HTMLElement>} candidate key -> card element */
+const cards = new Map();
+/** @type {Map<string, any>} job id -> job */
+const jobsById = new Map();
 
-async function activeTab() {
-  const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
-  return t;
-}
-
-function kindLabel(item) {
-  if (item.kind === 'hls') return 'HLS';
-  if (item.kind === 'dash') return 'DASH';
-  return (item.container || 'file').toUpperCase().slice(0, 5);
-}
-
-async function startDownload(item) {
-  await chrome.runtime.sendMessage({ type: 'START_DOWNLOAD', item: { ...item, quality: qualityEl.value } });
-  window.close();
-}
-
-function render(items) {
-  listEl.textContent = '';
-  document.body.classList.toggle('is-empty', items.length === 0);
-
-  for (const item of items) {
-    const row = document.createElement('div');
-    row.className = 'row';
-
-    const badge = document.createElement('div');
-    badge.className = `badge ${item.kind}`;
-    badge.textContent = kindLabel(item);
-
-    const name = document.createElement('div');
-    name.className = 'name';
-    name.textContent = item.name || item.host || item.url;
-
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.textContent = [item.host, item.size ? formatBytes(item.size) : '', item.kind !== 'direct' ? 'stream' : '']
-      .filter(Boolean)
-      .join(' · ');
-
-    const dl = document.createElement('button');
-    dl.className = 'dl';
-    dl.textContent = 'Get';
-    dl.addEventListener('click', () => startDownload(item));
-
-    row.append(badge, name, meta, dl);
-    listEl.appendChild(row);
-  }
-}
-
-async function refresh() {
-  if (!tab) tab = await activeTab();
-  if (!tab) return;
-  const res = await chrome.runtime.sendMessage({ type: 'GET_MEDIA', tabId: tab.id });
-  render(res?.items || []);
-}
-
-// Download the page's main video (yt-dlp extracts it — this is the YouTube path).
-pageBtn.addEventListener('click', async () => {
-  if (!tab) tab = await activeTab();
-  if (!tab?.url || !/^https?:/i.test(tab.url)) {
-    statusEl.textContent = 'This page has no downloadable URL.';
-    return;
-  }
-  await startDownload({
-    id: crypto.randomUUID(),
-    tabId: tab.id,
-    url: tab.url,
-    kind: 'page',
-    name: tab.title || tab.url,
-    host: new URL(tab.url).host,
-  });
-});
-
-clearBtn.addEventListener('click', async () => {
-  if (!tab) tab = await activeTab();
-  await chrome.runtime.sendMessage({ type: 'CLEAR_TAB', tabId: tab.id });
-  refresh();
-});
-
-// Probe the native host so the user knows whether the engine is installed.
-function checkEngine() {
-  let port;
+const send = (type, extra) => chrome.runtime.sendMessage({ type, ...extra }).catch(() => null);
+const proxyArg = () => (settings.proxyEnabled && settings.proxyUrl ? settings.proxyUrl : '');
+const safeHost = (u) => {
   try {
-    port = chrome.runtime.connectNative(HOST);
+    return new URL(u).host;
   } catch {
-    statusEl.textContent = 'engine: not installed — run npm run install-host';
-    return;
+    return '';
   }
-  let answered = false;
-  port.onMessage.addListener((msg) => {
-    if (msg.type === 'pong' || msg.type === 'ready') {
-      if (msg.type === 'pong') {
-        answered = true;
-        statusEl.textContent = msg.ytdlp
-          ? `engine: yt-dlp ${msg.ytdlp}${msg.ffmpeg ? ' + ffmpeg' : ''}${msg.deno ? ' + deno' : ''}`
-          : 'engine: yt-dlp missing — run npm run fetch-tools';
-        port.disconnect();
-      } else {
-        port.postMessage({ action: 'ping' });
+};
+const fileBase = (p) => String(p || '').split(/[\\/]/).pop() || String(p || '');
+
+// --- settings ---------------------------------------------------------------
+async function loadSettings() {
+  const { settings: s } = await chrome.storage.local.get('settings');
+  settings = { proxyEnabled: !!s?.proxyEnabled, proxyUrl: s?.proxyUrl || '' };
+  proxyOn.checked = settings.proxyEnabled;
+  proxyUrl.value = settings.proxyUrl;
+  proxyUrl.disabled = !settings.proxyEnabled;
+}
+function saveSettings() {
+  settings.proxyEnabled = proxyOn.checked;
+  settings.proxyUrl = proxyUrl.value.trim();
+  proxyUrl.disabled = !settings.proxyEnabled;
+  chrome.storage.local.set({ settings });
+}
+gearBtn.addEventListener('click', () => (settingsEl.hidden = !settingsEl.hidden));
+proxyOn.addEventListener('change', saveSettings);
+proxyUrl.addEventListener('change', saveSettings);
+proxyUrl.addEventListener('blur', saveSettings);
+
+// --- candidates -------------------------------------------------------------
+function pageCandidate(t) {
+  return mkCandidate({ key: 'page:' + t.url, kind: 'page', url: t.url, host: safeHost(t.url), name: t.title || t.url, main: true });
+}
+function streamCandidate(it) {
+  return mkCandidate({
+    key: 'stream:' + it.url,
+    kind: it.kind,
+    url: it.url,
+    host: it.host || safeHost(it.url),
+    name: it.name || it.host || it.url,
+    size: it.size || 0,
+  });
+}
+function mkCandidate(base) {
+  return { thumbnail: '', duration: 0, heights: [], uploader: '', size: 0, jobId: null, renamed: false, main: false, ...base };
+}
+
+async function init() {
+  await loadSettings();
+  [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  candidates = [];
+  if (tab?.url && /^https?:/i.test(tab.url)) candidates.push(pageCandidate(tab));
+  const media = await send('GET_MEDIA', { tabId: tab?.id });
+  for (const it of media?.items || []) {
+    if (!candidates.some((c) => c.url === it.url)) candidates.push(streamCandidate(it));
+  }
+
+  await syncJobs();
+  render();
+  checkEngine();
+  previewMain();
+}
+
+// Reflect any downloads already running/finished for these URLs (popup reopened).
+async function syncJobs() {
+  const res = await send('queue:list');
+  const byUrl = new Map();
+  for (const j of res?.jobs || []) {
+    jobsById.set(j.id, j);
+    const prev = byUrl.get(j.url);
+    if (!prev || (j.createdAt || 0) > (prev.createdAt || 0)) byUrl.set(j.url, j);
+  }
+  for (const c of candidates) {
+    const j = byUrl.get(c.url);
+    if (j) c.jobId = j.id;
+  }
+}
+
+function render() {
+  listEl.textContent = '';
+  cards.clear();
+  const empty = candidates.length === 0;
+  document.body.classList.toggle('is-empty', empty);
+  if (empty) emptyEl.textContent = 'No video here — open a normal web page (http/https).';
+  for (const c of candidates) renderCard(c);
+}
+
+// --- a card -----------------------------------------------------------------
+function renderCard(c) {
+  const card = tpl.content.firstElementChild.cloneNode(true);
+  cards.set(c.key, card);
+
+  card.querySelector('.dl').addEventListener('click', () => startDownload(c));
+  card.querySelector('.cancel').addEventListener('click', () => c.jobId && send('queue:cancel', { id: c.jobId }));
+  card.querySelector('.retry').addEventListener('click', () => c.jobId && send('queue:retry', { id: c.jobId }));
+  card.querySelector('.open').addEventListener('click', () => c.jobId && send('host:open', { id: c.jobId }));
+  card.querySelector('.folder').addEventListener('click', () => c.jobId && send('host:reveal', { id: c.jobId }));
+  card.querySelector('.rename').addEventListener('click', () => startRename(c, card));
+  card.querySelector('.remove').addEventListener('click', () => removeCard(c));
+
+  listEl.appendChild(card);
+  refreshCard(c);
+}
+
+function refreshCard(c) {
+  const card = cards.get(c.key);
+  if (!card) return;
+
+  const img = card.querySelector('.thumb');
+  if (c.thumbnail && img.dataset.src !== c.thumbnail) {
+    img.dataset.src = c.thumbnail;
+    img.onload = () => (img.hidden = false);
+    img.onerror = () => (img.hidden = true);
+    img.src = c.thumbnail;
+  } else if (!c.thumbnail) {
+    img.hidden = true;
+  }
+
+  const dur = card.querySelector('.dur');
+  if (c.duration) {
+    dur.hidden = false;
+    dur.textContent = formatDuration(c.duration);
+  } else {
+    dur.hidden = true;
+  }
+
+  card.querySelector('.star').hidden = !c.main;
+
+  const titleEl = card.querySelector('.title');
+  if (!titleEl.querySelector('input')) {
+    titleEl.textContent = c.name || c.host || c.url;
+    titleEl.title = c.name || '';
+  }
+  card.querySelector('.sub').textContent = subLine(c);
+
+  setState(card, c.jobId ? jobsById.get(c.jobId) : null);
+}
+
+function subLine(c) {
+  const bits = [];
+  if (c.host) bits.push(c.host);
+  if (c.uploader) bits.push(c.uploader);
+  if (c.heights?.length) bits.push(`up to ${c.heights[0]}p`);
+  if (c.size) bits.push(formatBytes(c.size));
+  if (c.kind === 'hls' || c.kind === 'dash') bits.push(c.kind.toUpperCase());
+  return bits.join('  ·  ');
+}
+
+function setState(card, job) {
+  const show = (sel, on) => (card.querySelector(sel).hidden = !on);
+  const st = job?.status;
+  const active = st === 'queued' || st === 'running' || st === 'postprocess';
+  card.classList.toggle('done', st === 'done');
+  card.classList.toggle('error', st === 'error');
+
+  show('.actions', !job || st === 'cancelled');
+  show('.progress', active);
+  show('.doneRow', st === 'done');
+  show('.errRow', st === 'error');
+
+  if (active) {
+    const bar = card.querySelector('.bar');
+    if (st === 'postprocess') {
+      bar.classList.add('indeterminate');
+      bar.style.width = '';
+    } else {
+      bar.classList.remove('indeterminate');
+      bar.style.width = `${Math.round(job.percent || 0)}%`;
+    }
+    card.querySelector('.pstatus').textContent = statusText(job);
+  } else if (st === 'done') {
+    card.querySelector('.doneMsg').textContent = job.file ? `Saved · ${fileBase(job.file)}` : 'Saved to Downloads';
+  } else if (st === 'error') {
+    const e = card.querySelector('.errMsg');
+    e.textContent = job.error || 'Download failed.';
+    e.title = job.error || '';
+  }
+}
+
+function statusText(job) {
+  if (job.status === 'queued') return 'Queued…';
+  if (job.status === 'postprocess') return `${phaseLabel(job.phase)}…`;
+  return (
+    `${(job.percent || 0).toFixed(0)}%` +
+    `${job.total ? ` / ${job.total}` : ''}${job.speed ? ` · ${job.speed}` : ''}${job.eta ? ` · ETA ${job.eta}` : ''}`
+  );
+}
+
+function phaseLabel(name) {
+  if (name === 'Merger') return 'Merging';
+  if (name === 'ExtractAudio') return 'Extracting audio';
+  if (name === 'VideoConvertor' || name === 'VideoRemuxer') return 'Converting';
+  if (name === 'EmbedSubtitle') return 'Embedding subs';
+  if (name === 'Metadata') return 'Writing metadata';
+  if (name && name.startsWith('Fixup')) return 'Finalizing';
+  return 'Processing';
+}
+
+// --- actions ----------------------------------------------------------------
+async function startDownload(c) {
+  const quality = qualityEl.value || 'best';
+  const res = await send('queue:add', {
+    job: { kind: c.kind, url: c.url, quality, title: c.name, filename: c.name, host: c.host, proxy: proxyArg() },
+  });
+  if (res?.id) {
+    c.jobId = res.id;
+    jobsById.set(res.id, { id: res.id, url: c.url, status: 'queued', percent: 0 });
+    refreshCard(c);
+  }
+}
+
+function startRename(c, card) {
+  const titleEl = card.querySelector('.title');
+  if (titleEl.querySelector('input')) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = c.name || '';
+  titleEl.textContent = '';
+  titleEl.appendChild(input);
+  input.focus();
+  input.select();
+  let settled = false;
+  const commit = (keep) => {
+    if (settled) return;
+    settled = true;
+    if (keep) {
+      const v = input.value.trim();
+      if (v) {
+        c.name = v;
+        c.renamed = true;
       }
     }
-  });
-  port.onDisconnect.addListener(() => {
-    if (!answered) {
-      const err = chrome.runtime.lastError?.message || '';
-      statusEl.textContent = /not found|forbidden/i.test(err)
-        ? 'engine: not installed — run npm run install-host'
-        : `engine: unavailable (${err || 'no response'})`;
+    refreshCard(c);
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commit(true);
+    } else if (e.key === 'Escape') {
+      commit(false);
     }
   });
+  input.addEventListener('blur', () => commit(true));
 }
 
-refresh();
-checkEngine();
-pollTimer = setInterval(refresh, 1500);
-window.addEventListener('unload', () => clearInterval(pollTimer));
+function removeCard(c) {
+  cards.get(c.key)?.remove();
+  cards.delete(c.key);
+  candidates = candidates.filter((x) => x !== c);
+  if (!candidates.length) {
+    document.body.classList.add('is-empty');
+    emptyEl.textContent = 'Nothing here.';
+  }
+}
+
+// --- preview + live updates -------------------------------------------------
+async function previewMain() {
+  const c = candidates.find((x) => x.main);
+  if (!c) return;
+  const r = await send('media:preview', { url: c.url, proxy: proxyArg() });
+  if (!r?.ok) return;
+  if (r.title && !c.renamed) c.name = r.title;
+  c.thumbnail = r.thumbnail || '';
+  c.duration = r.duration || 0;
+  c.heights = r.heights || [];
+  c.uploader = r.uploader || '';
+  refreshCard(c);
+}
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === 'job:update') {
+    jobsById.set(msg.job.id, msg.job);
+    const c = candidates.find((x) => x.jobId === msg.job.id);
+    if (c) refreshCard(c);
+  }
+});
+
+async function checkEngine() {
+  const r = await send('engine:check');
+  if (r?.ok) {
+    statusEl.textContent = r.ytdlp
+      ? `engine: yt-dlp ${r.ytdlp}${r.ffmpeg ? ' + ffmpeg' : ''}${r.deno ? ' + deno' : ''}`
+      : 'engine: yt-dlp missing — run npm run fetch-tools';
+  } else {
+    statusEl.textContent =
+      r?.error === 'not-installed' ? 'engine: not installed — run npm run install-host' : 'engine: unavailable';
+  }
+}
+
+init();
