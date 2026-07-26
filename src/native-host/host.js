@@ -1,7 +1,7 @@
 // VideoGrabitel native messaging host.
 // Chrome launches this (via videograbitel-host.bat) and talks to it over stdio using
 // the native-messaging framing: a 4-byte little-endian length prefix + UTF-8 JSON.
-// It bridges the extension to local yt-dlp + ffmpeg binaries — that's what lets
+// It bridges the extension to local yt-dlp + ffmpeg binaries. This lets
 // VideoGrabitel handle YouTube and large files without any in-browser limits.
 
 import { spawn, execFileSync } from 'node:child_process';
@@ -32,7 +32,7 @@ function jsRuntimeArgs() {
 }
 
 // Optional proxy (the extension's VPN runs inside Chrome only; the host is a
-// separate OS process, so it routes traffic itself — a proxy lets it match).
+// separate OS process, so it routes traffic itself. A proxy lets it match).
 function proxyArgs(proxy) {
   const p = String(proxy || '').trim();
   return /^[a-z0-9.+-]+:\/\//i.test(p) ? ['--proxy', p] : [];
@@ -188,19 +188,50 @@ function handle(msg) {
   }
 }
 
-function ping() {
-  let ver = '';
-  let proc;
-  try {
-    proc = spawn(YTDLP, ['--version']);
-  } catch {
-    return send({ type: 'pong', ytdlp: null, ffmpeg: !!FFMPEG_DIR });
-  }
-  proc.stdout.on('data', (d) => (ver += d));
-  proc.on('error', () => send({ type: 'pong', ytdlp: null, ffmpeg: !!FFMPEG_DIR }));
-  proc.on('close', (code) =>
-    send({ type: 'pong', ytdlp: code === 0 ? ver.trim() : null, ffmpeg: !!FFMPEG_DIR, deno: !!DENO, bin: BIN }),
-  );
+function probeTool(command, args) {
+  return new Promise((resolve) => {
+    let output = '';
+    let settled = false;
+    let proc;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+    try {
+      proc = spawn(command, args, { windowsHide: true });
+    } catch {
+      resolve(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      try {
+        proc.kill();
+      } catch {
+        /* already stopped */
+      }
+      finish(null);
+    }, 2500);
+    proc.stdout?.on('data', (d) => (output += d));
+    proc.on('error', () => finish(null));
+    proc.on('close', (code) => finish(code === 0 ? output.trim() || true : null));
+  });
+}
+
+async function ping() {
+  const [ytdlp, ffmpeg, deno] = await Promise.all([
+    probeTool(YTDLP, ['--version']),
+    probeTool(toolPath('ffmpeg'), ['-version']),
+    probeTool(toolPath('deno'), ['--version']),
+  ]);
+  send({
+    type: 'pong',
+    ytdlp: typeof ytdlp === 'string' ? ytdlp : null,
+    ffmpeg: !!ffmpeg,
+    deno: !!deno,
+    bin: BIN,
+  });
 }
 
 // Fetch metadata only (no download) so the UI can show a preview first.
@@ -229,7 +260,7 @@ function preview(msg) {
     }
     try {
       const info = JSON.parse(out);
-      // Only forward small fields — a full -J dump can exceed the native-messaging size limit.
+      // Forward small fields only.
       send({
         type: 'preview',
         title: info.title || info.fulltitle || '',
@@ -257,9 +288,9 @@ function summarizeHeights(formats) {
 
 // Force H.264 (avc1) video + AAC audio in an mp4. YouTube also serves VP9/AV1
 // inside mp4 containers, which many players (incl. Windows' default) render as a
-// grey screen with sound — so we match the *codec*, not just the container.
+// grey screen with sound, so we match the *codec*, not just the container.
 // avc1 caps at 1080p on YouTube; above that the chosen height falls back to
-// whatever codec is available (may be VP9/AV1 — the user explicitly asked for it).
+// whatever codec is available (may be VP9/AV1, as explicitly requested).
 const QUALITY = {
   best: ['-f', 'bv*[vcodec^=avc1]+ba[acodec^=mp4a]/b[vcodec^=avc1]/bv*+ba/b', '--merge-output-format', 'mp4'],
   audio: ['-x', '--audio-format', 'mp3'],
@@ -343,7 +374,7 @@ function download(msg) {
         total: total ? total[1].replace(/\s+/g, '') : '',
       });
     }
-    // Post-processing phases (no % progress) — surface them so the UI isn't "stuck at 100%".
+    // Report processing phases.
     const phase = line.match(/^\[(Merger|ExtractAudio|VideoConvertor|VideoRemuxer|Fixup\w*|Metadata|EmbedSubtitle)\]/);
     if (phase) send({ type: 'phase', name: phase[1] });
     const dest =
@@ -366,7 +397,7 @@ function download(msg) {
 
   proc.on('error', (e) => {
     current = null;
-    const hint = HAS_LOCAL_YTDLP ? '' : ' — yt-dlp not found. Run "npm run fetch-tools".';
+    const hint = HAS_LOCAL_YTDLP ? '' : ': yt-dlp not found. Run "npm run fetch-tools".';
     send({ type: 'error', message: `yt-dlp failed to start: ${e.message}${hint}` });
   });
   proc.on('close', (code) => {
@@ -377,7 +408,7 @@ function download(msg) {
   });
 }
 
-// Split a stream into trimmed lines (handles \r, \n, \r\n — yt-dlp uses \r a lot).
+// Split trimmed lines.
 function lineStream(stream, cb) {
   let acc = '';
   stream.setEncoding('utf8');

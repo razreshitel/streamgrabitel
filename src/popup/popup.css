@@ -16,7 +16,7 @@
 * {
   box-sizing: border-box;
 }
-/* Make the `hidden` attribute authoritative — element rules like `display:flex`
+/* Keep `hidden` authoritative. Element rules like `display:flex`
    would otherwise override it, leaving every card state visible at once. */
 [hidden] {
   display: none !important;
@@ -118,6 +118,49 @@ body {
   margin: 0;
   color: var(--muted);
   font-size: 11.5px;
+}
+
+.engineAlert {
+  margin: 10px 10px 0;
+  padding: 12px;
+  border: 1px solid rgba(239, 68, 68, 0.7);
+  border-radius: 10px;
+  background: rgba(127, 29, 29, 0.35);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.engineAlert strong {
+  color: #fecaca;
+  font-size: 14px;
+}
+.engineAlert span {
+  color: #fee2e2;
+}
+.engineAlert code {
+  padding: 7px 9px;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  border-radius: 7px;
+  background: rgba(15, 16, 32, 0.75);
+  color: #fff;
+  font-family: ui-monospace, Consolas, monospace;
+}
+.engineAlertActions {
+  display: flex;
+  gap: 7px;
+}
+.engineAlertActions button {
+  padding: 6px 10px;
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  border-radius: 7px;
+  background: #fee2e2;
+  color: #7f1d1d;
+  font-weight: 700;
+  cursor: pointer;
+}
+.engineAlertActions button:hover {
+  background: #fff;
 }
 
 /* list */
@@ -379,4 +422,8 @@ body.is-empty .list {
   background: var(--bg);
   color: var(--muted);
   font-size: 11px;
+}
+.foot.engineError {
+  color: #fca5a5;
+  font-weight: 700;
 }

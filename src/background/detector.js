@@ -8,12 +8,13 @@ const DIRECT_EXTS = new Set([
   'mp4', 'm4v', 'webm', 'mov', 'mkv', 'avi', 'flv', 'ogv',
   'm4a', 'mp3', 'aac', 'ogg', 'oga', 'opus', 'flac', 'wav', 'weba',
 ]);
+const SCRIPT_EXTS = new Set(['php', 'phtml', 'asp', 'aspx', 'jsp', 'cgi', 'pl']);
 
 // Streaming manifests.
 const HLS_EXTS = new Set(['m3u8', 'm3u']);
 const DASH_EXTS = new Set(['mpd']);
 
-// Per-segment artifacts of a stream — noise on their own, never listed directly.
+// Per-segment stream artifacts.
 const SEGMENT_EXTS = new Set(['ts', 'm4s', 'm4f', 'cmf', 'cmfv', 'cmfa', 'init', 'key', 'vtt']);
 
 const HLS_CTYPES = new Set([
@@ -41,6 +42,24 @@ function headerValue(headers, name) {
   if (!headers) return '';
   const h = headers.find((x) => x.name.toLowerCase() === name);
   return h ? (h.value || '').toLowerCase() : '';
+}
+
+export function isNoisyDirectUrl(url) {
+  try {
+    const name = new URL(url).pathname.split('/').filter(Boolean).pop() || '';
+    const ext = extOf(url);
+    if (SCRIPT_EXTS.has(ext)) return true;
+    return (
+      !ext &&
+      name.length >= 32 &&
+      /^[a-z0-9_-]+$/i.test(name) &&
+      /[a-z]/.test(name) &&
+      /[A-Z]/.test(name) &&
+      /\d/.test(name)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -78,6 +97,7 @@ export function classify(details) {
     (ctype.startsWith('audio/') && !ctype.includes('mpegurl'));
 
   if (looksMedia) {
+    if (!DIRECT_EXTS.has(ext) && isNoisyDirectUrl(url)) return null;
     // A standalone media file worth listing is essentially never < 50 KB. This
     // drops ad creatives, range chunks and SABR probes that carry a video/*
     // type (or even a .mp4 name) but are only a few KB.

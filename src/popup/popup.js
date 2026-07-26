@@ -1,4 +1,4 @@
-// VideoGrabitel popup — the whole UI lives here: it lists the page's main video
+// VideoGrabitel popup: the whole UI lives here. It lists the page's main video
 // (first) plus any detected streams, previews them, lets you rename + pick quality,
 // and shows live progress inline. The actual download runs in the service worker
 // (queue.js), so it keeps going after this popup closes; reopening re-syncs state.
@@ -14,6 +14,12 @@ const proxyOn = document.getElementById('proxyOn');
 const proxyUrl = document.getElementById('proxyUrl');
 const qualityEl = document.getElementById('quality');
 const tpl = document.getElementById('cardTpl');
+const engineAlert = document.getElementById('engineAlert');
+const engineAlertTitle = document.getElementById('engineAlertTitle');
+const engineAlertMessage = document.getElementById('engineAlertMessage');
+const engineCommand = document.getElementById('engineCommand');
+const copyEngineCommand = document.getElementById('copyEngineCommand');
+const recheckEngine = document.getElementById('recheckEngine');
 
 let tab = null;
 let settings = { proxyEnabled: false, proxyUrl: '' };
@@ -109,7 +115,7 @@ function render() {
   cards.clear();
   const empty = candidates.length === 0;
   document.body.classList.toggle('is-empty', empty);
-  if (empty) emptyEl.textContent = 'No video here — open a normal web page (http/https).';
+  if (empty) emptyEl.textContent = 'No video here. Open a normal web page (http/https).';
   for (const c of candidates) renderCard(c);
 }
 
@@ -171,7 +177,7 @@ function subLine(c) {
   if (c.heights?.length) bits.push(`up to ${c.heights[0]}p`);
   if (c.size) bits.push(formatBytes(c.size));
   if (c.kind === 'hls' || c.kind === 'dash') bits.push(c.kind.toUpperCase());
-  return bits.join('  ·  ');
+  return bits.join(' | ');
 }
 
 function setState(card, job) {
@@ -197,7 +203,7 @@ function setState(card, job) {
     }
     card.querySelector('.pstatus').textContent = statusText(job);
   } else if (st === 'done') {
-    card.querySelector('.doneMsg').textContent = job.file ? `Saved · ${fileBase(job.file)}` : 'Saved to Downloads';
+    card.querySelector('.doneMsg').textContent = job.file ? `Saved: ${fileBase(job.file)}` : 'Saved to Downloads';
   } else if (st === 'error') {
     const e = card.querySelector('.errMsg');
     e.textContent = job.error || 'Download failed.';
@@ -210,7 +216,7 @@ function statusText(job) {
   if (job.status === 'postprocess') return `${phaseLabel(job.phase)}…`;
   return (
     `${(job.percent || 0).toFixed(0)}%` +
-    `${job.total ? ` / ${job.total}` : ''}${job.speed ? ` · ${job.speed}` : ''}${job.eta ? ` · ETA ${job.eta}` : ''}`
+    `${job.total ? ` / ${job.total}` : ''}${job.speed ? ` | ${job.speed}` : ''}${job.eta ? ` | ETA ${job.eta}` : ''}`
   );
 }
 
@@ -304,15 +310,37 @@ chrome.runtime.onMessage.addListener((msg) => {
 });
 
 async function checkEngine() {
+  recheckEngine.disabled = true;
+  statusEl.textContent = 'engine: checking…';
   const r = await send('engine:check');
-  if (r?.ok) {
-    statusEl.textContent = r.ytdlp
-      ? `engine: yt-dlp ${r.ytdlp}${r.ffmpeg ? ' + ffmpeg' : ''}${r.deno ? ' + deno' : ''}`
-      : 'engine: yt-dlp missing — run npm run fetch-tools';
-  } else {
-    statusEl.textContent =
-      r?.error === 'not-installed' ? 'engine: not installed — run npm run install-host' : 'engine: unavailable';
+  recheckEngine.disabled = false;
+  const healthy = !!(r?.ok && r.ytdlp && r.ffmpeg);
+  engineAlert.hidden = healthy;
+  statusEl.closest('.foot').classList.toggle('engineError', !healthy);
+
+  if (healthy) {
+    statusEl.textContent = `engine: yt-dlp ${r.ytdlp} + ffmpeg${r.deno ? ' + deno' : ''}`;
+    return;
   }
+
+  const toolsMissing = !!(r?.ok && (!r.ytdlp || !r.ffmpeg));
+  engineAlertTitle.textContent = toolsMissing ? 'Video engine is incomplete' : 'Video engine unavailable';
+  engineAlertMessage.textContent = toolsMissing
+    ? 'Required download tools are missing. Run this command in the VideoGrabitel folder, then check again.'
+    : 'Reinstall the local engine from the VideoGrabitel folder, then reload the extension or check again.';
+  engineCommand.textContent = toolsMissing ? 'npm run setup' : 'npm run install-host';
+  copyEngineCommand.textContent = 'Copy command';
+  statusEl.textContent = toolsMissing ? 'engine: required tools missing' : 'engine: connection failed';
 }
+
+copyEngineCommand.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(engineCommand.textContent);
+    copyEngineCommand.textContent = 'Copied';
+  } catch {
+    copyEngineCommand.textContent = 'Copy failed';
+  }
+});
+recheckEngine.addEventListener('click', checkEngine);
 
 init();

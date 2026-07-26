@@ -2,7 +2,7 @@
 // Observes network responses, classifies media, keeps a per-tab catalogue,
 // drives the toolbar badge, and owns the download queue (see queue.js).
 
-import { classify } from './detector.js';
+import { classify, isNoisyDirectUrl } from './detector.js';
 import { uid, basename, hostOf } from '../lib/util.js';
 import { handleQueueMessage } from './queue.js';
 
@@ -44,12 +44,15 @@ async function ensureLoaded() {
     if (media) {
       for (const [tabId, items] of Object.entries(media)) {
         const m = new Map();
-        for (const it of items) m.set(dedupeKey(it.url), it);
+        for (const it of items) {
+          if (it.kind === 'direct' && isNoisyDirectUrl(it.url)) continue;
+          m.set(dedupeKey(it.url), it);
+        }
         store.set(Number(tabId), m);
       }
     }
   } catch {
-    /* first run — nothing to load */
+    /* first run */
   }
   loaded = true;
 }
